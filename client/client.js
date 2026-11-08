@@ -39,7 +39,7 @@ module.exports = __toCommonJS(index_exports);
 var import_react = __toESM(require("react"), 1);
 var import_jsx_runtime = require("react/jsx-runtime");
 var inject = ["sidebarRightTabs", "slots", "resources"];
-var VERSION = "0.9.0";
+var VERSION = "0.10.0";
 var STATE_URL = "/plugins/dsh-science/state";
 var POLL_MS = 3e3;
 var teamRuntime = { hasRecordedParents: false };
@@ -3036,6 +3036,11 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
 }
 function apply(ctx) {
   try {
+    if (window.__DSH_SCIENCE_CLIENT_MOUNTED) {
+      console.warn("[dsh-science] apply() re-invoked on an already-mounted page; keeping first registration (double-mount guard)");
+      return;
+    }
+    window.__DSH_SCIENCE_CLIENT_MOUNTED = true;
     window.__DSH_SCIENCE_CLIENT_APPLIED = true;
   } catch {
   }

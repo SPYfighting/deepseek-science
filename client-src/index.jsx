@@ -1,4 +1,6 @@
 // dsh-science client — 科研工作台 v0.7.1（三标签：团队 / 文章框架 / 产物）
+// v0.10.0：B3 双份挂载修复——apply() 入口加 window.__DSH_SCIENCE_CLIENT_MOUNTED 幂等 guard
+//   （同页面域重复 apply 直接 return 保留首次注册；整页 reload/双开新窗口不受影响）。
 // v0.7.1（round-1 review 修复）：F1 DAG 选点连通性优先（被 blockedBy 引用的任务与其依赖同屏，
 //   task-31→34 全链可见）；F2 任务节点用更高层 surface（--dsw-alias-bg-layer-2）+ border-l4 边框
 //   （暗色 alpha 0.2 ≥ 0.18）；F3 列头真实计数（全量任务）+ 第四列「已结束」（failed/cancelled/
@@ -55,7 +57,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const inject = ['sidebarRightTabs', 'slots', 'resources']
 
-const VERSION = '0.9.0'
+const VERSION = '0.10.0'
 const STATE_URL = '/plugins/dsh-science/state'
 const POLL_MS = 3000
 // 模块级运行时标记：成员是否记录了真实父会话（供 apply 层 memberOpenAvailable 判定）
@@ -2981,10 +2983,21 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
 }
 
 export function apply(ctx) {
+  // B3（v0.10.0）防双份挂载 guard：v0.9 验收时发现右侧工作台面板出现双份（两次打开/档案 reload）。
+  // 根因：同一页面域内 apply() 被再次调用（热重载/档案重挂载/插件重复激活）时，
+  // sidebarRightTabs.register('dsh-science/workbench') 与 slots.inject 仍持有首次注册——
+  // 重复注册会叠加出双份面板。guard：window.__DSH_SCIENCE_CLIENT_MOUNTED 已置位 → 直接 return
+  // （保留首次注册，打日志）。整页 reload / 双开新窗口都是全新 window 对象，guard 不存在，
+  // 正常重挂载不受影响。
   try {
+    if (window.__DSH_SCIENCE_CLIENT_MOUNTED) {
+      console.warn('[dsh-science] apply() re-invoked on an already-mounted page; keeping first registration (double-mount guard)')
+      return
+    }
+    window.__DSH_SCIENCE_CLIENT_MOUNTED = true
     window.__DSH_SCIENCE_CLIENT_APPLIED = true
   } catch {
-    /* ignore */
+    /* ignore（非浏览器环境） */
   }
 
   // ---- 成员会话跳转（F4）------------------------------------------------------
