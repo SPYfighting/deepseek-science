@@ -1,6 +1,6 @@
 # HANDOFF — dsh-science 科研工作台插件
 
-> 交接文档 · 2026-11-08 · 版本 v0.10.0
+> 交接文档 · 2026-11-08 · 版本 v0.10.1
 > 仓库：https://github.com/SPYfighting/deepseek-science
 
 ---
@@ -161,9 +161,9 @@
 
 | 项 | 原因 | 怎么补 |
 |---|---|---|
-| **npm publish** | 无 npm 账号 | 见 §五 操作指南 |
-| **插件市场收录** | 需 GitHub PR / 手动提交 | `index.json` 已备好；向 `imsai-sh/awesome-deepseek-harness-plugins` 提 PR；`dsh-1024store` 提交 |
-| presentation 角色第 2 轮对抗审核 | 子智能体额度用尽 | 按既定模式跑（模板见 DEVLOG） |
+| **npm publish** | npmjs.com 注册页对当前网络返回 "Access is temporarily restricted"（注册受限，非本地问题） | 网络恢复后按 §五 操作；或换用其他邮箱/网络环境重试 |
+| presentation 角色第 2 轮对抗审核 | 子智能体额度用尽 | 已改为人工代码审计 + 提示词补强（见 §九），完整对抗审核待额度恢复 |
+| `dsh-1024store` 提交 | 该项目与 awesome-list 同源（同一资料目录），awesome-list PR 通过后自动进入 1024 商店 | 无需单独提交 |
 | 自动审查的 web 事件触发 | DSH 平台限制（第三方插件在 web profile 收不到 `session/event`） | 主路径 `/sci-review` 不受影响；可向 DSH 官方 Discussions 反馈 |
 | 成员跨会话唤醒 | 平台边界（成员归属其 spawn 父会话） | 新会话 `sci_team_spawn_all` 重建 |
 | Claude Science 完整逆向 | 只做机制研究 | REA 分析结果在 `research/rea-webdist-analysis.json` |
@@ -271,6 +271,36 @@ D:/AI/task/DSH science/
 
 ---
 
+## 九、本轮（v0.10.1）新增与修复
+
+### 已完成的收尾工作
+
+**1. 插件市场收录 PR 已提交** ✅
+- PR: https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/860
+- 按该仓库 `CONTRIBUTING.md` 规范：单个 `catalog/plugins/spyfighting--deepseek-science.json`，含 id/name/repository/category/description(en+zh)/added
+- 说明中如实标注「repository install only（npm 未发布）」，已通过该仓库的清单检查
+- 该目录与 `dsh-1024store`（deepseek1024.com）同源，PR 合并后自动进商店
+
+**2. 角色提示词全面强化**（原本 4 个角色偏薄，13-15 行 → 27-32 行）
+| 角色 | 前 | 后 | 补了什么 |
+|---|---|---|---|
+| analyst | 13行/990字 | 27行 | schema 优先访问、统计三件套（统计量+效应量+CI）必报、多重比较校正、缺失/异常/批次诊断、数据质量警告、边界声明 |
+| reviewer | 13行/1281字 | 32行 | 追因不复算原则细化、六项检查项命名、严重度语义（pass/warn/fail 定义）、表格程序化解析、边界（不重跑/不修改/方法选择归 warn） |
+| literature-scout | 14行/885字 | 32行 | 多源检索礼仪（一秒节流）、DOI 核对闸门、引用与论点对应、缺口卡四段结构、检索可复现记录、边界 |
+| writer | 15行/483字 | 30行/1350字 | 三级润色细则、事实红线、文风规则（禁排比清单冒充论证）、章节要点（IMRaD 逐节）、**衔接设计**（逻辑桥 + 全文主张链闭合）、**蓝图对齐**（动笔前读 overview）、输出合同（数字溯源表） |
+
+**3. 修复一个致命打包 bug** ✅
+- 症状：全新用户安装后 `sci_team_spawn` 全部失败——`package.json` 的 `files` 字段漏了 `agents/`，角色提示词根本没进包
+- 修复：`files` 加入 `agents`；已用全新安装验证 `agents/` 8 个角色文件在包内，`presenter` 成员生成成功
+- 教训：**每次改 package.json files 后必须做一次全新安装验证**（不能只看本地源码目录）
+
+**4. 版本** v0.10.0 → v0.10.1
+
+### 仍然待办
+- npm 发布（注册受限，非技术问题）
+- presentation 角色完整对抗审核（额度受限，已用人工审计替代：11 项关键要素全部在位）
+- v0.9 遗留 P1/P2 项（见 §四）
+
 ## 八、最重要的教训（给接手的人）
 
 1. **`git push` 后必须核对远端 HEAD 哈希** — orphan 重写会丢 upstream，`git push` 变空操作却打印误导信息
@@ -280,3 +310,5 @@ D:/AI/task/DSH science/
 5. **同一文件超过 2 次字符串补丁必须整文件重写** — 否则结构会被 patch 弄坏
 6. **web profile 下第三方插件收不到 `session/event`** — 证据源用 `session.snapshotEvents()` 直读
 7. **headless 一次性进程会在异步任务完成前退出** — 异步验证要用常驻 web 会话
+8. **`package.json` 的 `files` 白名单是静默杀手** — 漏一个目录（如 `agents/`）源码测试全绿，用户安装后功能全废；改完必须全新安装验证
+9. **npmjs.com 注册可能受地域/网络限制** — 返回 "Access is temporarily restricted" 时换网络环境或用其他邮箱，不是技术故障
