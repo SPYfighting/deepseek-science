@@ -3,7 +3,7 @@ name: sci-writing
 description: 学术论文写作规范与流程。撰写或修改论文任何章节（摘要/引言/方法/结果/讨论）时使用。
 ---
 
-# 学术论文写作（原创实现，设计参考 nature-skills/ARS 的流程思想）
+# 学术论文写作（设计参考 nature-skills/ARS 的流程思想）
 
 ## 动笔前
 

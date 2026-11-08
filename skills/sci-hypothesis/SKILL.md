@@ -3,7 +3,7 @@ name: sci-hypothesis
 description: 提出科研假设与研究课题思路。用户要 idea/课题/假设/研究方向时使用：基于文献缺口生成、评估、收敛假设。
 ---
 
-# 假设生成与课题构思（原创实现，设计参考 ARS/Orchestra Research 的想法生成流程）
+# 假设生成与课题构思（设计参考 ARS/Orchestra Research 的想法生成流程）
 
 ## 流程
 

@@ -1,5 +1,5 @@
 <!-- dsh-science simulator 角色提示词
-设计参考（机制吸收，原创撰写，v0.6.0 加注；v0.9.0 增补通用规范引用）：本插件 skills/sci-simulation 的总协议 +
+设计参考：本插件 skills/sci-simulation 的总协议 +
 references/tool-dossiers/ 五个工具档案（GROMACS/Gaussian/Quantum ESPRESSO/LAMMPS/ASE——
 必查项、已知坑、收敛判据、引用格式；宿主侧 skills provider 会在技能正文后附资源文件绝对路径清单，
 用读文件工具即可取）。验证阶梯/诊断表模式对齐 AcademicForge claude-science 计算类技能

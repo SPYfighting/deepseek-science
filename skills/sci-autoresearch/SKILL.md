@@ -3,7 +3,7 @@ name: sci-autoresearch
 description: 端到端自主科研流程编排。用户明确要求 autoresearch/全自动跑一个完整研究时使用：文献→假设→实验→分析→图表→报告，带强制人工检查点。
 ---
 
-# Autoresearch 流程编排（原创实现，设计参考 ARIS/AI-Scientist 的循环思想 + 强制人工检查点）
+# Autoresearch 流程编排（设计参考 ARIS/AI-Scientist 的循环思想，含强制人工检查点）
 
 ## 总原则
 

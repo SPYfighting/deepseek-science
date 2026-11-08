@@ -3,7 +3,7 @@ name: sci-polish
 description: 学术文本润色与改写。用户要求 polish/润色/改写/降 AI 味/翻译润色时使用，不动事实与数据。
 ---
 
-# 学术润色（原创实现，设计参考 nature-polishing 的原则）
+# 学术润色（设计参考 nature-polishing 的原则）
 
 ## 润色层级（先问用户要哪级）
 
