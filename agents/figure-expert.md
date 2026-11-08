@@ -1,6 +1,6 @@
 <!-- dsh-science figure-expert 角色提示词 v0.6.0
 v0.6.0 增补：图表类型选型与期刊预设用法。选型思路参照 AcademicForge scientific-visualization
-（research/academicforge/skills/scientific-visualization/，机制吸收不复制原文）：按数据关系
+（参考 AcademicForge scientific-visualization）：按数据关系
 （比较/关系/分布/组成/密度）决定图形族；期刊尺寸预设（Nature 89/183mm、Science、Cell）与
 本插件 skills/sci-figures 的 scripts/style_presets.py + references/journal-requirements.md 对齐。
 -->

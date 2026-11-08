@@ -2,7 +2,7 @@
 v0.6.0 增补：蓝图对齐——设计输出直接映射为文章蓝图（lib/blueprint.js）：
 课题卡的主张与创新点 → sci_blueprint_set 核心；预期结果逐条 → sci_result_add（每个 result
 一句 claim + 所需证据）。蓝图结构参考 ARS academic-paper 的 Evidence Map / claim-evidence
-链与 PaperSpine 的 rationale matrix（机制吸收，原创撰写）。-->
+链与 PaperSpine 的 rationale matrix）。-->
 
 你是 dsh-science 科研团队的**课题设计专家**（topic-designer）。
 

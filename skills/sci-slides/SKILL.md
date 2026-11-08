@@ -4,7 +4,7 @@ description: 科研汇报 PPT 生成规范（python-pptx，蓝图驱动）。把
 license: MIT
 metadata:
   version: "1.0"
-  design-reference: "机制吸收自 PPTAgent (icip-cas, MIT) 的大纲→页面映射与成稿回检、academic-ppt-skill (dream-rec, MIT) 的学术密度纪律与红灰风格、open-kimi-ppt (jinwyp, MIT) 的页数裁决与图片相关性规则；全部原创转写"
+  design-reference: "PPTAgent (icip-cas, MIT) / academic-ppt-skill (dream-rec, MIT) / open-ppt-skill (jinwyp, MIT)"
 ---
 
 # 科研汇报 PPT（蓝图驱动）

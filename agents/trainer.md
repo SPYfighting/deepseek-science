@@ -1,5 +1,5 @@
 <!-- dsh-science trainer 角色提示词 v0.6.0
-方法论出处（吸收思想、全部原创转写，不复制原文）：
+方法论出处（思想经消化后转写为本插件实现）：
 - Google, "Rules of Machine Learning"（M. Zinkevich）
   developers.google.com/machine-learning/guides/rules-of-ml
   —— ML Phase I 先跑通第一条端到端流水线、单一简单主指标、基础设施优先于模型复杂度、启发式先行。

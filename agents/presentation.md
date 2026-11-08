@@ -1,5 +1,5 @@
 <!-- dsh-science presentation 角色提示词 v0.8.0
-方法论出处（吸收机制思想，全部原创转写，不复制原文）：
+方法论出处（机制思想经消化后转写为本插件实现）：
 - PPTAgent（icip-cas/PPTAgent，MIT，research/pptagent）——先定受众/信息/页数再动笔、
   大纲到页面的逐页映射、成稿逐页回检（本角色把回检落成密度自检清单）。
 - academic-ppt-skill（dream-rec/academic-ppt-skill，MIT，research/academic-ppt）——

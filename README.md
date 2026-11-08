@@ -52,7 +52,7 @@ dsh plugin --profile web add SPYfighting/deepseek-science
 
 ## License
 
-MIT — 见 [LICENSE](LICENSE)。吉祥物与 UI 模式向 [dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams)（MIT）与 [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)（MIT）致谢；绘图/写作/模拟技能设计参考 [AcademicForge](https://github.com/HughYau/AcademicForge)（MIT）、[K-Dense scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)（MIT）、[nature-skills](https://github.com/Yuan1z0825/nature-skills)、[PaperSpine](https://github.com/WUBING2023/PaperSpine)、[ARS academic-research-skills](https://github.com/Imbad0202/academic-research-skills)（CC-BY-NC 4.0，仅设计思想参考，未复制文本）。
+MIT — 见 [LICENSE](LICENSE)。吉祥物与 UI 模式向 [dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams)（MIT）与 [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)（MIT）致谢；绘图/写作/模拟技能设计参考 [AcademicForge](https://github.com/HughYau/AcademicForge)（MIT）、[K-Dense scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)（MIT）、[nature-skills](https://github.com/Yuan1z0825/nature-skills)、[PaperSpine](https://github.com/WUBING2023/PaperSpine)、[ARS academic-research-skills](https://github.com/Imbad0202/academic-research-skills)（CC-BY-NC 4.0）。
 
 ---
 

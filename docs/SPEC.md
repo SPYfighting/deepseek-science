@@ -12,7 +12,7 @@
 
 **非目标（v1）**：不实现持久 Python/R 内核管理（复用 DSH 自身 shell/终端工具执行代码）；不做 Modal 云算力；不做文献 PDF 全文抓取代理；不做 GPU 模型端点管理。
 
-**合规红线**：Claude Science 的 skills 文本、reviewer 提示词、模板脚本**不复制原文**；只吸收机制设计（已核对的设计事实见 §12）。
+**参考边界**：Claude Science 为闭源产品，本插件的对应实现均基于公开文档描述的机制独立编写（核对过的设计事实见 §12）。
 
 ---
 
@@ -189,7 +189,7 @@ P2=§1 骨架+验证§9.1；P3=§2-§5；P4=§6；P5=§7-§8；P6=发布。
 
 `ssh2`、`postgres`（postgres.js）、`mysql2`、`sql.js`、`tar-stream`（或内建 zlib 流）、dev: `@deepseek-ai/cordis`、`@deepseek-ai/dsh-tools`、`@deepseek-ai/schemastery`、`typescript`、`tsdown`。
 
-## 12. 已核对的机制设计事实（供实现参照，均不复制文本）
+## 12. 已核对的机制设计事实（实现参照）
 
 - Claude Science：20 个内建 MCP 连接器按领域拆分、跑在 micromamba env；REVIEWER 为禁工具只读 agent，"trace, don't recompute"，矛盾才算发现；SSH 作业 = 作业目录 + setsid/timeout 看门狗 + out/ 打包收割 + `.phase` 标记；凭据 hosts.json+hosts.key 本机加密；产物 5 页签溯源（消息/代码/执行日志/环境/审查）。
 - aipoch：reviewer 独立会话 + 单一自有 MCP server + 权限锁死（非本 MCP 工具一律拒绝）；Review/Finding 表模型（v2/v3）；ScopeBlock contentHash 防篡改；审查器动作流全存档。
