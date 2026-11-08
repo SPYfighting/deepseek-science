@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="空闲（Zzz）">
+  <!-- dsh-science mascot action overlay — original SVG artwork (science-style homage to the agent-teams whale-girl pattern, MIT License).
+       idle: Zzz letters (status is usually shown by Dot colors; this overlay is optional). -->
+  <g fill="#8A9AA8" font-family="'Segoe UI', 'PingFang SC', sans-serif" font-weight="700">
+    <text x="40" y="104" font-size="66" transform="rotate(-8 76 84)">Z</text>
+    <text x="106" y="136" font-size="44">z</text>
+    <text x="142" y="164" font-size="30">z</text>
+  </g>
+</svg>

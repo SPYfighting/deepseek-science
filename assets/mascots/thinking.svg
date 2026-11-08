@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="思考中（?+灯泡）">
+  <!-- dsh-science mascot action overlay — original SVG artwork (science-style homage to the agent-teams whale-girl pattern, MIT License).
+       thinking: thought bubble with "?" and a small lightbulb (members holding pending/assigned but unclaimed tasks). -->
+  <g>
+    <!-- thought bubble trail (small circles trailing toward the mascot's head) -->
+    <circle cx="58" cy="168" r="7" fill="#8A9AA8" opacity=".75"/>
+    <circle cx="78" cy="150" r="10" fill="#8A9AA8" opacity=".85"/>
+    <!-- bubble -->
+    <circle cx="118" cy="104" r="46" fill="#4A9FD8" opacity=".16"/>
+    <circle cx="118" cy="104" r="46" fill="none" stroke="#4A9FD8" stroke-width="9"/>
+    <!-- question mark -->
+    <text x="96" y="126" font-size="64" font-weight="700" fill="#4A9FD8"
+      font-family="'Segoe UI', 'PingFang SC', sans-serif" transform="rotate(8 118 104)">?</text>
+    <!-- lightbulb spark (top-right) -->
+    <g stroke="#E69F00" stroke-width="7" stroke-linecap="round">
+      <path d="M172 46 L172 30"/>
+      <path d="M160 56 L148 46"/>
+      <path d="M184 56 L196 46"/>
+    </g>
+    <circle cx="172" cy="72" r="11" fill="#E69F00"/>
+    <path d="M166 84 L178 84 L176 94 L168 94 Z" fill="#8A9AA8"/>
+  </g>
+</svg>

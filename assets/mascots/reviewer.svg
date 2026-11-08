@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="科研审查鲸鱼娘（放大镜+红章）">
+  <!-- dsh-science mascot — original SVG artwork (science-style homage to the agent-teams whale-girl pattern, MIT License).
+       Flat chibi whale-girl: rounded whale body + girl bun/ahoge/blush; reviewer accessory: magnifying glass + red approval stamp. -->
+  <g fill="#F2B2C0" opacity=".85">
+    <circle cx="74" cy="34" r="4"/>
+    <circle cx="86" cy="26" r="3"/>
+  </g>
+  <path d="M66 58 Q68 44 74 34" stroke="#F2B2C0" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M144 98 C156 80 170 72 186 74 C180 84 172 90 164 94 C174 100 182 110 186 122 C168 118 154 110 146 104 Z" fill="#C25572" stroke="#5E1C30" stroke-width="3" stroke-linejoin="round"/>
+  <ellipse cx="92" cy="120" rx="64" ry="50" fill="#DE7C92" stroke="#5E1C30" stroke-width="3"/>
+  <ellipse cx="80" cy="148" rx="38" ry="18" fill="#EAF6FD"/>
+  <ellipse cx="92" cy="148" rx="16" ry="9" fill="#C25572" stroke="#5E1C30" stroke-width="2.5" transform="rotate(-12 92 148)"/>
+  <path d="M32 106 C30 76 56 58 90 58 C118 58 136 72 142 92 C122 80 100 78 78 84 C58 90 42 96 32 106 Z" fill="#93324E" stroke="#5E1C30" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="138" cy="66" r="10" fill="#93324E" stroke="#5E1C30" stroke-width="2.5"/>
+  <path d="M128 72 q6 6 14 2" stroke="#F7A8BC" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M88 58 C86 44 96 36 106 40 C98 42 94 50 95 58" fill="none" stroke="#93324E" stroke-width="3.5" stroke-linecap="round"/>
+  <g fill="#2B3F55">
+    <ellipse cx="64" cy="114" rx="7" ry="9"/>
+    <ellipse cx="98" cy="114" rx="7" ry="9"/>
+  </g>
+  <circle cx="66.5" cy="110" r="2.6" fill="#fff"/>
+  <circle cx="100.5" cy="110" r="2.6" fill="#fff"/>
+  <circle cx="50" cy="126" r="6" fill="#F7A8BC" opacity=".55"/>
+  <circle cx="113" cy="126" r="6" fill="#F7A8BC" opacity=".55"/>
+  <path d="M76 132 Q87 140 98 132" stroke="#2B3F55" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- reviewer accessory: magnifying glass + red check stamp -->
+  <circle cx="146" cy="106" r="13" fill="#CFEAF7" opacity=".75" stroke="#5E1C30" stroke-width="3"/>
+  <line x1="156" y1="116" x2="166" y2="126" stroke="#5E1C30" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="172" cy="140" r="10" fill="none" stroke="#D9584F" stroke-width="3"/>
+  <path d="M167 140 l3.5 3.5 7 -7" stroke="#D9584F" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

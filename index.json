@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "title": { "en": "dsh-science community index", "zh": "dsh-science 社区索引" },
+  "plugins": [
+    {
+      "name": "dsh-science",
+      "title": { "en": "dsh-science Science Workbench", "zh": "科研工作台" },
+      "description": { "en": "Publication figures, database & science APIs, auto result review, SSH remote compute, 9-role science team with paper-blueprint workflow.", "zh": "出版级绘图 · 数据库与科学数据源 · 自动结果审查 · SSH 远程计算 · 9 角色科研团队（文章蓝图工作流）" },
+      "icon": "assets/mascots/lead.svg",
+      "author": "SPYfighting",
+      "homepage": "https://github.com/SPYfighting/deepseek-science",
+      "repository": { "url": "https://github.com/SPYfighting/deepseek-science" },
+      "versions": [
+        {
+          "version": "0.7.1",
+          "publishTimestamp": 1794182400,
+          "source": { "type": "git", "url": "https://github.com/SPYfighting/deepseek-science" },
+          "engines": { "dsh": ">=0.2.0 <0.3.0" }
+        }
+      ]
+    }
+  ]
+}

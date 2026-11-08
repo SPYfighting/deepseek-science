@@ -1,0 +1,2 @@
+# 根目录依赖忽略；ssh2 以 esbuild 单文件捆绑在 lib/vendor/ssh2.bundle.cjs（无 node_modules 目录）
+node_modules/

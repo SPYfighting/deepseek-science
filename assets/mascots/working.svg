@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="工作中（加载弧）">
+  <!-- dsh-science mascot action overlay — original SVG artwork (science-style homage to the agent-teams whale-girl pattern, MIT License).
+       working: spinner-style arcs (status is usually shown by Dot colors; this overlay is optional). -->
+  <g stroke="#4A9FD8" stroke-width="14" stroke-linecap="round" fill="none">
+    <path d="M100 40 A60 60 0 0 1 160 100"/>
+    <path d="M100 160 A60 60 0 0 1 40 100" opacity=".35"/>
+  </g>
+  <circle cx="100" cy="100" r="14" fill="#4A9FD8"/>
+</svg>
