@@ -48,6 +48,7 @@ dsh plugin --profile web add SPYfighting/deepseek-science
 
 ## Documentation
 
+- [交接文档 HANDOFF](HANDOFF.md)（目的/需求对照/待办/验证方法）
 - [功能规格说明书](docs/SPEC.md) · [开发日志](docs/DEVLOG.md) · [agent-teams 协作配方](docs/recipes/agent-teams-science.md)
 
 ## License
