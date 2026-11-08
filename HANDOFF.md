@@ -275,11 +275,15 @@ D:/AI/task/DSH science/
 
 ### 已完成的收尾工作
 
-**1. 插件市场收录 PR 已提交** ✅
-- PR: https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/860
-- 按该仓库 `CONTRIBUTING.md` 规范：单个 `catalog/plugins/spyfighting--deepseek-science.json`，含 id/name/repository/category/description(en+zh)/added
-- 说明中如实标注「repository install only（npm 未发布）」，已通过该仓库的清单检查
-- 该目录与 `dsh-1024store`（deepseek1024.com）同源，PR 合并后自动进商店
+**1. 插件市场收录 PR 已提交并合并** ✅
+- **PR #860 已 MERGED**：https://github.com/imsai-sh/awesome-deepseek-harness-plugins/pull/860
+- 合并提交：`ee64b12 catalog: add spyfighting/deepseek-science (#860)`，条目已在 `main` 分支 `catalog/plugins/spyfighting--deepseek-science.json`
+- CI 状态：`static-review` SUCCESS
+- 该目录与 `dsh-1024store`（deepseek1024.com）同源，条目自动进入 1024 商店目录（README 由 bot 定时重新生成）
+- **收到 Codex 自动 review 两条 P1 意见并已修复**：
+  - `repository` URL 大小写必须与 `id` 一致（`validateCatalogEntry` 用大小写敏感比较）→ 改为全小写 `spyfighting/deepseek-science`
+  - 英文描述超 1000 字符上限（1184 → **982 字符**）
+  - 修复后本地跑该仓库官方校验 `validateCatalogEntry()` → **VALIDATION PASS**
 
 **2. 角色提示词全面强化**（原本 4 个角色偏薄，13-15 行 → 27-32 行）
 | 角色 | 前 | 后 | 补了什么 |
@@ -312,3 +316,4 @@ D:/AI/task/DSH science/
 7. **headless 一次性进程会在异步任务完成前退出** — 异步验证要用常驻 web 会话
 8. **`package.json` 的 `files` 白名单是静默杀手** — 漏一个目录（如 `agents/`）源码测试全绿，用户安装后功能全废；改完必须全新安装验证
 9. **npmjs.com 注册可能受地域/网络限制** — 返回 "Access is temporarily restricted" 时换网络环境或用其他邮箱，不是技术故障
+10. **提交社区目录前先本地跑他们的校验函数** — 本次 Codex 自动 review 抓到两个 P1（URL 大小写、描述长度），都是本地跑 `validateCatalogEntry()` 立刻能发现的；规范类仓库（catalog/schema/CI）应在提交前导入其校验逻辑自测
