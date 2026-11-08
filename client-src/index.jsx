@@ -57,7 +57,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const inject = ['sidebarRightTabs', 'slots', 'resources']
 
-const VERSION = '0.10.0'
+const VERSION = '0.10.1'
 const STATE_URL = '/plugins/dsh-science/state'
 const POLL_MS = 3000
 // 模块级运行时标记：成员是否记录了真实父会话（供 apply 层 memberOpenAvailable 判定）
