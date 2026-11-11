@@ -236,7 +236,7 @@ npx @deepseek-ai/dsh --profile web --no-open
 #    产物 tab：图表/文件树/远程主机/审查记录
 
 # 4. 功能验证（会话内）
-/sci-status                      # 实时体检（计数/配置/下一步）
+/sci-status                      # 模块状态
 /sci_team_spawn_all              # 生成全队
 "分析 demo.db 的差异表达基因"     # 队长自动建蓝图+派单
 /sci-review                      # 审查最近一轮
