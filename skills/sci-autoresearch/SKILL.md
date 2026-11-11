@@ -14,7 +14,7 @@ description: 端到端自主科研流程编排。用户明确要求 autoresearch
 ## 阶段流水线
 
 ### S1 文献综述（产出 01-literature.md）
-`sci_lit_search` 多源检索 → 按"已知/争议/缺口"三栏整理 → 每条断言附 DOI（`sci_doi_verify` 核对）。
+`web_search` / `web_fetch` 多源检索 → 按"已知/争议/缺口"三栏整理 → 每条断言附 DOI（`sci_doi_verify` 核对）。
 **检查点 1**：用户确认缺口判断。
 
 ### S2 假设与实验设计（产出 02-hypothesis.md）

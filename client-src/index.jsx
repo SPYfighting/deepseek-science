@@ -1,4 +1,8 @@
 // dsh-science client — 科研工作台 v0.7.1（三标签：团队 / 文章框架 / 产物）
+// v0.11.0（第五轮）：审查载荷瘦身——/state 的 reviews 只含摘要计数，展开审查行时才经
+//   /plugins/dsh-science/review?run=<id> 懒加载 findings（缓存 + 加载/错误态 + 卸载保护）。
+// v0.11.0（第四轮）：DAG 依赖聚焦——悬停/选中节点高亮其上下游依赖链、淡化无关节点与边
+//   （lib/dag.js 纯函数 BFS 闭包，环安全）；Esc 收起详情；详情卡增加「解锁」下游任务 chips。
 // v0.10.0：B3 双份挂载修复——apply() 入口加 window.__DSH_SCIENCE_CLIENT_MOUNTED 幂等 guard
 //   （同页面域重复 apply 直接 return 保留首次注册；整页 reload/双开新窗口不受影响）。
 // v0.7.1（round-1 review 修复）：F1 DAG 选点连通性优先（被 blockedBy 引用的任务与其依赖同屏，
@@ -54,10 +58,11 @@
 //   蓝图导出（sci_blueprint_export → research/blueprint-report.md 命令芯片）。
 // externals（react 等）由 DSH 平台模块表在运行时提供——绝不打包。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { dependencyClosure, normalizeTaskBoard } from '../lib/dag.js'
 
 export const inject = ['sidebarRightTabs', 'slots', 'resources']
 
-const VERSION = '0.10.1'
+const VERSION = '0.11.0'
 const STATE_URL = '/plugins/dsh-science/state'
 const POLL_MS = 3000
 // 模块级运行时标记：成员是否记录了真实父会话（供 apply 层 memberOpenAvailable 判定）
@@ -202,13 +207,29 @@ function pathInsideWorkspace(absPath, workspaceRoot) {
 
 // 轮询 host 状态路由。web 档案可用；桌面版 fetch 失败 → error 态（DataGate 降级提示）。
 // v0.9.0：暴露 refresh()（技能库 POST 成功后立即拉取一次，不等下一个 3s 轮询）。
+// 第四轮：入库前归一 team 条目——手改 team.json 夹带 null/标量不能让整个工作台崩溃。
+function normalizeClientState(raw) {
+  if (!raw || typeof raw !== 'object') return raw
+  const team = raw.team && typeof raw.team === 'object' ? raw.team : { members: [], tasks: [] }
+  return {
+    ...raw,
+    team: {
+      ...team,
+      members: (Array.isArray(team.members) ? team.members : []).filter(
+        (m) => m && typeof m === 'object' && typeof m.name === 'string',
+      ),
+      tasks: normalizeTaskBoard(team.tasks),
+    },
+  }
+}
+
 function usePollState(intervalMs) {
   const [snap, setSnap] = useState({ data: null, error: null, loading: true, ts: 0 })
   const tickNow = useCallback(async (aliveObj) => {
     try {
       const res = await fetch(STATE_URL, { credentials: 'same-origin' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = normalizeClientState(await res.json())
       if (!aliveObj || aliveObj.alive) setSnap({ data, error: null, loading: false, ts: Date.now() })
     } catch (err) {
       if (!aliveObj || aliveObj.alive) setSnap((s) => ({ ...s, error: err, loading: false }))
@@ -948,7 +969,7 @@ function dagLayout(tasks, ensureId, cap) {
 // 任务详情卡：DAG 节点点击展开 / 列表视图行内展开共用（desc/result/依赖/时间戳）。
 // v0.9.0：onJumpTask 提供时，依赖（含已完成）渲染为可点击 chip → 跳转目标任务行/节点
 //（对齐 agent-teams 任务详情的依赖可追踪语义）；未提供时保持纯文本。
-function TaskDetailCard({ t, tasksById, onJumpTask }) {
+function TaskDetailCard({ t, tasksById, onJumpTask, chain }) {
   if (!t) return null
   const deps = Array.isArray(t.blockedBy) ? t.blockedBy : []
   const unfinishedDeps = deps.filter((dep) => {
@@ -1001,6 +1022,35 @@ function TaskDetailCard({ t, tasksById, onJumpTask }) {
         </div>
       )}
       {t.desc && <div style={{ whiteSpace: 'pre-wrap', marginTop: 4, color: C.fg }}>{t.desc}</div>}
+      {chain && chain.downstream.length > 0 && (
+        <div
+          data-task-downstream={chain.downstream.join(',')}
+          style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}
+        >
+          <span style={{ color: C.faint, flexShrink: 0 }}>解锁：</span>
+          {chain.downstream.map((id) => (
+            <span
+              key={id}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (jumpable) {
+                  try { onJumpTask(id) } catch { /* ignore */ }
+                }
+              }}
+              title={jumpable ? `点击跳转到 ${id}` : id}
+              style={{
+                display: 'inline-block', padding: '0 6px', borderRadius: 8,
+                border: `1px solid ${C.border}`, background: C.card,
+                fontSize: 10, lineHeight: '16px', color: C.muted,
+                cursor: jumpable ? 'pointer' : 'default',
+                fontFamily: 'ui-monospace, monospace',
+              }}
+            >
+              {id}
+            </span>
+          ))}
+        </div>
+      )}
       {t.result && <div style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}><b style={{ color: C.ok }}>结果：</b>{t.result}</div>}
       <div style={{ marginTop: 4, color: C.faint }}>
         创建 {fmtTime(t.createdAt) || '—'}
@@ -1015,16 +1065,35 @@ function TaskDetailCard({ t, tasksById, onJumpTask }) {
 // 「+N 更多」点击展开全量节点（F6，CAP 切至 Infinity）。纯 SVG/CSS，无三方库。
 function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
   const [sel, setSel] = useState(null)
+  const [hoverId, setHoverId] = useState(null)
   // F6：展开全部（CAP → 全量）；点击底部「+N 更多」置位，展开后显示「收起」
   const [expandedAll, setExpandedAll] = useState(false)
   // F7：SVG marker id 加实例唯一前缀（多实例/热重载下 DOM 全局 id 不串线）
   const uidRef = useRef('')
   if (!uidRef.current) uidRef.current = `dshsci-${Math.random().toString(36).slice(2, 8)}`
   const uid = uidRef.current
+  const focusId = sel || hoverId || null
+  const chain = useMemo(() => (focusId ? dependencyClosure(focusId, tasks) : null), [focusId, tasks])
+  const related = chain ? chain.related : null
+  // Esc 收起选中详情（与 agent-teams DependencyMap 一致）；悬停链随之清空
+  useEffect(() => {
+    if (!sel) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setSel(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [sel])
   const layout = useMemo(
     () => dagLayout(tasks, focusTaskId || sel || null, expandedAll ? Infinity : DAG_CAP),
     [tasks, focusTaskId, sel, expandedAll],
   )
+  // 节点被 +N 折叠/任务被删时收不到 mouseleave——悬停 id 不在可见节点里就清掉，
+  // 否则 focusId 残留会让全图一直处于淡化态。
+  useEffect(() => {
+    if (!hoverId) return
+    if (!layout.nodes.some((n) => n.w.t.id === hoverId)) setHoverId(null)
+  }, [layout, hoverId])
   const vpRef = useRef(null)
   useEffect(() => {
     // 初始与展开时把视口滚到末列（已结束），失败/取消节点可见
@@ -1095,7 +1164,7 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
         ref={vpRef}
         style={{ maxHeight: 380, overflow: 'auto', border: `1px solid ${C.divider}`, borderRadius: 8, background: C.card, position: 'relative' }}
       >
-        <div data-dag-canvas="" style={{ position: 'relative', width: layout.width, height: layout.height }}>
+        <div data-dag-canvas="" data-dag-focus={focusId || undefined} style={{ position: 'relative', width: layout.width, height: layout.height }}>
           {/* 列头 */}
           {DAG_COLS.map((c, i) => (
             <div
@@ -1126,27 +1195,35 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                 <path d="M0 0 L8 4 L0 8 Z" style={{ fill: C.faint }} />
               </marker>
             </defs>
-            {layout.edges.map((e) => (
-              <path
-                key={`${e.from}->${e.to}`}
-                data-dag-edge={`${e.from}->${e.to}`}
-                d={e.d}
-                fill="none"
-                style={{ stroke: e.active ? C.accent : C.faint, pointerEvents: 'stroke' }}
-                strokeWidth={e.active ? 1.6 : 1}
-                strokeDasharray={e.active ? undefined : '3 3'}
-                opacity={e.active ? 0.9 : 0.55}
-                markerEnd={e.active ? `url(#${uid}-arrow-a)` : `url(#${uid}-arrow-f)`}
-              >
-                {/* F6：hover 显示依赖语义（svg 自身 pointer-events:none，path 以 stroke 命中） */}
-                <title>{`${e.from} → ${e.to} 依赖`}</title>
-              </path>
-            ))}
+            {layout.edges.map((e) => {
+              const hot = related !== null && related.has(e.from) && related.has(e.to)
+              const dimmed = related !== null && !hot
+              const strong = hot || (related === null && e.active)
+              return (
+                <path
+                  key={`${e.from}->${e.to}`}
+                  data-dag-edge={`${e.from}->${e.to}`}
+                  data-dag-hot={hot ? 'true' : undefined}
+                  d={e.d}
+                  fill="none"
+                  style={{ stroke: strong ? C.accent : C.faint, pointerEvents: 'stroke' }}
+                  strokeWidth={strong ? 1.8 : 1}
+                  strokeDasharray={e.active ? undefined : '3 3'}
+                  opacity={dimmed ? 0.18 : strong ? 0.95 : 0.55}
+                  markerEnd={strong ? `url(#${uid}-arrow-a)` : `url(#${uid}-arrow-f)`}
+                >
+                  {/* F6：hover 显示依赖语义（svg 自身 pointer-events:none，path 以 stroke 命中） */}
+                  <title>{`${e.from} → ${e.to} 依赖`}</title>
+                </path>
+              )
+            })}
           </svg>
           {/* 任务节点层 */}
           {layout.nodes.map(({ w, x, y, col }) => {
             const t = w.t
             const isSel = sel === t.id
+            const isFocus = focusId === t.id
+            const dimmed = related !== null && !related.has(t.id)
             const running = t.status === 'claimed' || t.status === 'in_progress'
             const color = STATUS_COLOR[t.status] || C.faint
             return (
@@ -1155,15 +1232,24 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                 data-dag-node={t.id}
                 data-status={t.status}
                 data-col={DAG_COLS[col].label}
+                data-dag-focus={isFocus ? 'true' : undefined}
+                data-dag-dimmed={dimmed ? 'true' : undefined}
                 onClick={() => setSel(isSel ? null : t.id)}
-                title={`${t.id} · ${t.subject || ''} · ${t.assignee || '待领'} · 点击${isSel ? '收起' : '展开'}详情`}
+                onMouseEnter={() => setHoverId(t.id)}
+                onMouseLeave={() => setHoverId((cur) => (cur === t.id ? null : cur))}
+                onFocus={() => setHoverId(t.id)}
+                onBlur={() => setHoverId((cur) => (cur === t.id ? null : cur))}
+                tabIndex={0}
+                title={`${t.id} · ${t.subject || ''} · ${t.assignee || '待领'} · 悬停高亮依赖链，点击${isSel ? '收起' : '展开'}详情`}
                 style={{
                   position: 'absolute', left: x, top: y, width: DAG_NODE_W, height: DAG_NODE_H,
                   // F2：节点用更高层 surface（bg-layer-2）+ border-l4 边框（暗色 alpha 0.2 ≥ 0.18）
-                  border: `1px solid ${isSel ? C.accent : C.borderNode}`,
+                  border: `1px solid ${isFocus ? C.accent : C.borderNode}`,
                   borderLeft: `3px solid ${color}`,
                   borderRadius: 8, background: isSel ? C.chip : C.surface,
-                  padding: '3px 6px', cursor: 'pointer',
+                  padding: '3px 6px', cursor: 'pointer', outline: 'none',
+                  opacity: dimmed ? 0.32 : 1,
+                  transition: 'opacity 0.12s ease',
                   animation: running ? 'dsh-sci-nodeglow 2.2s ease-in-out infinite' : undefined,
                 }}
               >
@@ -1225,9 +1311,9 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
       )}
       <div style={{ marginTop: 6 }} data-task-detail-host="">
         {selTask ? (
-          <TaskDetailCard t={selTask} tasksById={layout.tasksById} onJumpTask={jumpToTask} />
+          <TaskDetailCard t={selTask} tasksById={layout.tasksById} onJumpTask={jumpToTask} chain={chain} />
         ) : (
-          <Empty>点击任务节点查看详情（描述/结果/依赖/时间）；依赖 chip 可点击跳转；点击上方成员头像打开会话，▾ 展开其任务列表。</Empty>
+          <Empty>悬停节点高亮上下游依赖链，点击查看详情（描述/结果/依赖/解锁），Esc 收起；依赖与解锁 chip 可点击跳转；点击上方成员头像打开会话。</Empty>
         )}
       </div>
     </div>
@@ -1571,7 +1657,7 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
                       if (checked) {
                         postManage({ action: 'remove', role, name: entry.name }, `已移除 ${item.name}`)
                       } else {
-                        postManage({ action: 'install', role, repoId: item.id }, `已安装 ${item.name}（成员 spawn 后生效；已 spawn 的成员用 sci_team_send 通知）`)
+                        postManage({ action: 'install', role, repoId: item.id }, `已安装 ${item.name}（同角色已 spawn 成员自动唤醒；否则下次 spawn 生效）`)
                       }
                     }}
                     style={{ marginTop: 2, flexShrink: 0 }}
@@ -1648,7 +1734,7 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
         )
       })}
       <p style={{ fontSize: 10, color: C.faint, margin: '2px 0 0' }}>
-        安装即 git clone --depth 1 到 role-skills/&lt;角色&gt;/ 并生成 INDEX.md；只有该角色成员 spawn 提示词携带索引（跨角色隔离）。已 spawn 的成员需 sci_team_send 通知新技能路径。
+        安装即 git clone --depth 1 到 role-skills/&lt;角色&gt;/ 并生成 INDEX.md；只有该角色成员 spawn 提示词携带索引（跨角色隔离）。同角色已 spawn 的成员会自动收到新技能路径，Web UI 安装（无 agent）则下次 spawn 生效。
       </p>
     </Panel>
   )
@@ -1665,8 +1751,8 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
   }
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
   const team = data.team || { members: [], tasks: [] }
-  const members = Array.isArray(team.members) ? team.members : []
-  const tasks = Array.isArray(team.tasks) ? team.tasks : []
+  const members = Array.isArray(team.members) ? team.members.filter((m) => m && typeof m.name === 'string') : []
+  const tasks = normalizeTaskBoard(team.tasks)
   const onOpenMember = (m) => {
     try {
       if (typeof openMemberSession !== 'function') throw new Error('成员会话跳转不可用')
@@ -1805,10 +1891,31 @@ function CoreCard({ core }) {
   )
 }
 
+// 主张级审查徽章：reviewCoverage（lib/reviewcov.js）给出的最近一次 blueprint-claim 结论。
+// 未审用灰边、warn/fail 用警示色——一眼看出哪些已确认主张还没有审查结论。
+const REVIEW_SEV_LABEL = { pass: '审✓', warn: '审!', fail: '审✗', none: '未审' }
+const REVIEW_SEV_COLOR = { pass: 'ok', warn: 'warn', fail: 'err', none: 'faint' }
+function ReviewBadge({ review }) {
+  const sev = review && review.severity ? review.severity : 'none'
+  const color = C[REVIEW_SEV_COLOR[sev] || 'faint'] || C.faint
+  const tip = sev === 'none'
+    ? '该主张尚无审查记录（check=blueprint-claim）——用 /sci-review 或 sci_review_send scope=evidence 补审'
+    : `最近审查（${review.runId || '未记录'}）：${sev}${review.message ? ` · ${review.message}` : ''}`
+  return (
+    <span
+      data-result-review={sev}
+      title={tip}
+      style={{ fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: '0 5px', lineHeight: '15px', flexShrink: 0 }}
+    >
+      {REVIEW_SEV_LABEL[sev] || sev}
+    </span>
+  )
+}
+
 // 单个 result 行（列表视图用，v0.6.0 形态保留）：状态点 + 标题 + 状态标签 + 任务数 + 图表数；
 // 行点击展开详情（完整 claim + 支撑任务 chips + 图表证据 chips + notes）。
 // F4（v0.7.1）：支撑任务 = union(blueprint tasks, 任务板 resultId 反查)，与框架图同口径。
-function ResultRow({ r, tasksById, onOpenTask, onOpenFigure }) {
+function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
   const [open, setOpen] = useState(false)
   const status = r.status || 'planned'
   const tasks = [...resultTaskIdsOf(r, tasksById)]
@@ -1878,6 +1985,9 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure }) {
           >
             {SCREENING_LABEL[screening.decision] || screening.decision}
           </span>
+        )}
+        {review && r.claim && (
+          <ReviewBadge review={review} />
         )}
         <span style={{ color: C.faint, fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>{open ? '▾' : '▸'}</span>
       </div>
@@ -1995,13 +2105,13 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure }) {
 }
 
 // Results 列表（列表视图）+ 空态引导（tasksById 传入 → F4 支撑任务与框架图同口径 union）
-function ResultsList({ results, tasksById, onOpenTask, onOpenFigure }) {
+function ResultsList({ results, tasksById, onOpenTask, onOpenFigure, reviewById }) {
   if (results.length === 0) {
     return <Empty>还没有 Results。让队长用 sci_result_add 添加支撑核心的子主张（建议 3-5 个，每个一句可检验的 claim）。</Empty>
   }
   return (
     <div>
-      {results.map((r) => <ResultRow key={r.id} r={r} tasksById={tasksById} onOpenTask={onOpenTask} onOpenFigure={onOpenFigure} />)}
+      {results.map((r) => <ResultRow key={r.id} r={r} tasksById={tasksById} onOpenTask={onOpenTask} onOpenFigure={onOpenFigure} review={reviewById ? reviewById.get(r.id) : null} />)}
     </div>
   )
 }
@@ -2451,13 +2561,21 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
 
 // 覆盖检查：host 侧 coverageOf（lib/blueprint.js）产出的警告逐条渲染。
 // 证伪风险（⚠ 开头）用 err 色加重；其余警告用 warn 色；无警告显示"覆盖完整"。
-function CoverageSection({ coverage }) {
+function CoverageSection({ coverage, resultsCount }) {
   const cov = coverage || {}
   const warnings = Array.isArray(cov.warnings) ? cov.warnings : []
   const negative = typeof cov.negativeCount === 'number' ? cov.negativeCount : 0
   const supported = typeof cov.supportedCount === 'number' ? cov.supportedCount : 0
+  const dropped = typeof cov.droppedCount === 'number' ? cov.droppedCount : 0
+  const total = typeof cov.total === 'number' ? cov.total : (typeof resultsCount === 'number' ? resultsCount : 0)
   if (warnings.length === 0) {
-    return <Empty>覆盖完整：每个 result 都有任务与图表，任务全部对齐到 result（supported {supported} · negative {negative}）。</Empty>
+    if (total === 0) {
+      return <Empty>尚无 result——先 sci_result_add 添加 Results，覆盖检查才有对象。</Empty>
+    }
+    if (supported === 0) {
+      return <Empty>无可支撑的 result（negative {negative} · dropped {dropped} 已退出支撑链）——文章尚无 supported 证据。</Empty>
+    }
+    return <Empty>覆盖完整：在研 result 都有任务与图表，任务全部对齐到 result（supported {supported} · negative {negative}）。</Empty>
   }
   return (
     <div style={{ border: `1px solid ${cov.falsificationRisk ? C.err : C.border}`, borderRadius: 8, padding: '6px 10px', background: C.card }}>
@@ -2486,6 +2604,38 @@ function CoverageSection({ coverage }) {
   )
 }
 
+// 主张级审查覆盖：已审 X/Y + 每条主张最近结论 + 警告（已确认 fail / 未审）。
+function ReviewCoverageSection({ rc }) {
+  const counts = (rc && rc.counts) || {}
+  const total = typeof counts.total === 'number' ? counts.total : 0
+  const reviewed = typeof counts.reviewed === 'number' ? counts.reviewed : 0
+  const warnings = Array.isArray(rc && rc.warnings) ? rc.warnings : []
+  const rows = [rc && rc.core, ...((rc && Array.isArray(rc.results)) ? rc.results : [])].filter((v) => v && v.claim)
+  if (total === 0) {
+    return <Empty>尚无带 claim 的主张——先 sci_blueprint_set / sci_result_add 建立可核对的主张。</Empty>
+  }
+  return (
+    <div style={{ border: `1px solid ${counts.fail > 0 ? C.err : C.border}`, borderRadius: 8, padding: '6px 10px', background: C.card }}>
+      <div style={{ fontSize: 11, color: C.fg, marginBottom: 4 }}>
+        已审 <b>{reviewed}/{total}</b>
+        <span style={{ color: C.faint }}>（pass {counts.pass || 0} · warn {counts.warn || 0} · fail {counts.fail || 0}）</span>
+      </div>
+      {rows.map((v) => (
+        <div key={v.id} data-review-cov-row={v.id} style={{ fontSize: 11, lineHeight: 1.6, color: v.severity === 'fail' ? C.err : v.severity === 'warn' ? C.warn : v.severity === 'pass' ? C.ok : C.faint }}>
+          {v.id}：{v.severity || '未审'}{v.runId ? `（${v.runId}）` : ''}{v.message ? ` — ${v.message}` : ''}
+        </div>
+      ))}
+      {warnings.map((w, i) => (
+        <div key={`w${i}`} style={{ fontSize: 10, color: C.warn, marginTop: 4 }}>⚠ {w}</div>
+      ))}
+      <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>
+        主张级审查来源：sci_review_send scope=evidence 或 /sci-review · 详情命令：
+        <CmdChip cmd="sci_blueprint_overview" />
+      </div>
+    </div>
+  )
+}
+
 function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
   const [view, setView] = useState('graph')
   const bp = (data && data.blueprint) || {}
@@ -2496,6 +2646,16 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
   const bpError = (data && data.blueprintError) || null
   const tasksById = useMemo(() => new Map(((data && data.team && data.team.tasks) || []).map((t) => [t.id, t])), [data])
   const figById = useMemo(() => new Map(((data && data.figures) || []).map((f) => [f.id, f])), [data])
+  const reviewCov = bp.reviewCoverage || null
+  const reviewById = useMemo(() => {
+    const m = new Map()
+    if (reviewCov) {
+      for (const v of [...(reviewCov.core ? [reviewCov.core] : []), ...(Array.isArray(reviewCov.results) ? reviewCov.results : [])]) {
+        if (v && v.id) m.set(v.id, v)
+      }
+    }
+    return m
+  }, [reviewCov])
   return (
     <div>
       {bpError && (
@@ -2553,13 +2713,18 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
             <CoreCard core={core} />
           </Panel>
           <Panel title={`Results（${results.length}）`} extra={<span style={{ fontSize: 10, color: C.faint }}>支撑核心的子主张{updatedAt}</span>}>
-            <ResultsList results={results} tasksById={tasksById} onOpenTask={onOpenTask} onOpenFigure={onOpenFigure} />
+            <ResultsList results={results} tasksById={tasksById} onOpenTask={onOpenTask} onOpenFigure={onOpenFigure} reviewById={reviewById} />
           </Panel>
         </>
       )}
       <Panel title="覆盖检查">
-        <CoverageSection coverage={bp.coverage} />
+        <CoverageSection coverage={bp.coverage} resultsCount={results.length} />
       </Panel>
+      {reviewCov && (
+        <Panel title="主张审查覆盖">
+          <ReviewCoverageSection rc={reviewCov} />
+        </Panel>
+      )}
       <div style={{ fontSize: 10, color: C.muted, marginTop: 6, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
         命令：<CmdChip cmd="sci_result_add" />
         <CmdChip cmd="sci_blueprint_overview" />
@@ -2772,13 +2937,53 @@ const REVIEW_STATUS_COLOR = {
 
 function ReviewsSection({ reviews }) {
   const [expanded, setExpanded] = useState(() => new Set())
-  const toggle = (id) =>
+  // 摘要（/state）不含 findings；展开某行时才经 /review 取详情并缓存，避免 3s 轮询背全量历史。
+  const [details, setDetails] = useState(() => new Map())
+  const [loading, setLoading] = useState(() => new Set())
+  const [errors, setErrors] = useState(() => new Map())
+  const inflight = useRef(new Set())
+  const aliveRef = useRef(true)
+  useEffect(() => () => { aliveRef.current = false }, [])
+  const loadDetail = async (id) => {
+    if (inflight.current.has(id)) return
+    inflight.current.add(id)
+    setLoading((prev) => new Set(prev).add(id))
+    setErrors((prev) => {
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
+    try {
+      const res = await fetch(`/plugins/dsh-science/review?run=${encodeURIComponent(id)}`, { credentials: 'same-origin' })
+      let body = null
+      try { body = await res.json() } catch { body = null }
+      if (!aliveRef.current) return
+      if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`)
+      if (!body || !body.run) throw new Error('响应缺少 run 数据（服务器可能不支持 /review）')
+      setDetails((prev) => new Map(prev).set(id, body.run))
+    } catch (err) {
+      if (aliveRef.current) setErrors((prev) => new Map(prev).set(id, (err && err.message) || String(err)))
+    } finally {
+      inflight.current.delete(id)
+      if (aliveRef.current) {
+        setLoading((prev) => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      }
+    }
+  }
+  const toggle = (id) => {
+    const opening = !expanded.has(id)
     setExpanded((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
+    if (opening && !details.has(id) && !loading.has(id)) loadDetail(id)
+  }
   if (!reviews || reviews.length === 0) {
     return <Empty>暂无审查记录。用 /sci-review 审查最近一轮回复，或让队长 sci_review_send 派给 reviewer。</Empty>
   }
@@ -2787,9 +2992,14 @@ function ReviewsSection({ reviews }) {
     <div>
       {rows.map((r) => {
         const id = r.id || r.key
-        const findings = Array.isArray(r.findings) ? r.findings : []
-        const fails = findings.filter((f) => f && f.severity === 'fail').length
-        const warns = findings.filter((f) => f && f.severity === 'warn').length
+        const summaryFindings = Array.isArray(r.findings) ? r.findings : []
+        const counts = r.counts || {
+          fail: summaryFindings.filter((f) => f && f.severity === 'fail').length,
+          warn: summaryFindings.filter((f) => f && f.severity === 'warn').length,
+        }
+        const detail = details.get(id)
+        const findings = detail && Array.isArray(detail.findings) ? detail.findings : null
+        const meta = detail || r
         const isOpen = expanded.has(id)
         return (
           <div key={id}>
@@ -2810,7 +3020,7 @@ function ReviewsSection({ reviews }) {
                 {id}
               </b>
               <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>turn {typeof r.turn === 'number' ? r.turn : '—'}</span>
-              <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>fail {fails} · warn {warns}</span>
+              <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>fail {counts.fail} · warn {counts.warn}</span>
               <span style={{ color: C.faint, fontSize: 10, marginLeft: 'auto', flexShrink: 0 }}>
                 {fmtTime(r.finishedAt || r.startedAt)}
               </span>
@@ -2818,6 +3028,7 @@ function ReviewsSection({ reviews }) {
             </div>
             {isOpen && (
               <div
+                data-review-detail={id}
                 style={{
                   border: `1px solid ${C.divider}`, borderRadius: 8,
                   padding: '6px 10px', marginBottom: 4,
@@ -2825,15 +3036,21 @@ function ReviewsSection({ reviews }) {
                 }}
               >
                 <div style={{ color: C.faint }}>
-                  {id} · {r.status} · 触发 {r.trigger || 'review'} · turn {typeof r.turn === 'number' ? r.turn : '—'}
-                  {r.sessionId ? ` · 会话 ${String(r.sessionId).slice(0, 12)}` : ''}
+                  {id} · {meta.status} · 触发 {meta.trigger || 'review'} · turn {typeof meta.turn === 'number' ? meta.turn : '—'}
+                  {meta.sessionId ? ` · 会话 ${String(meta.sessionId).slice(0, 12)}` : ''}
                 </div>
-                {findings.length === 0 && (
-                  <div style={{ marginTop: 4 }}>
-                    （无 findings{r.status === 'parse-failed' ? '——审查器输出未解析为 JSON，本次不构成结论' : ''}）
+                {loading.has(id) && <div data-review-loading="1" style={{ marginTop: 4 }}>加载 findings…</div>}
+                {errors.has(id) && (
+                  <div data-review-error="1" style={{ marginTop: 4, color: C.err }}>
+                    findings 加载失败：{errors.get(id)}（收起后重新展开可重试）
                   </div>
                 )}
-                {findings.map((f, i) => (
+                {findings && findings.length === 0 && (
+                  <div style={{ marginTop: 4 }}>
+                    （无 findings{(detail && detail.status === 'parse-failed') || r.status === 'parse-failed' ? '——审查器输出未解析为 JSON，本次不构成结论' : ''}）
+                  </div>
+                )}
+                {findings && findings.map((f, i) => (
                   <div key={i} style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
                     <b style={{ color: f && f.severity === 'fail' ? C.err : f && f.severity === 'warn' ? C.warn : C.ok }}>
                       [{String((f && f.severity) || '?').toUpperCase()}]
@@ -2983,21 +3200,23 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
 }
 
 export function apply(ctx) {
-  // B3（v0.10.0）防双份挂载 guard：v0.9 验收时发现右侧工作台面板出现双份（两次打开/档案 reload）。
-  // 根因：同一页面域内 apply() 被再次调用（热重载/档案重挂载/插件重复激活）时，
-  // sidebarRightTabs.register('dsh-science/workbench') 与 slots.inject 仍持有首次注册——
-  // 重复注册会叠加出双份面板。guard：window.__DSH_SCIENCE_CLIENT_MOUNTED 已置位 → 直接 return
-  // （保留首次注册，打日志）。整页 reload / 双开新窗口都是全新 window 对象，guard 不存在，
-  // 正常重挂载不受影响。
+  // B3（v0.10.0）防双份挂载 guard；v0.11.0 批 2 改为「活着才拦」：
+  // 宿主 client-modules 的 replace() 先 tearDownEntryFiber（跑 effect dispose）再同窗重执行
+  // bundle——永久 window 标志会在 teardown 后挡住重新注册，工作台标签永久消失。
+  // 逐部件活性：各注册的 dispose 复位自己的标记；apply 只补注册已死部件，全活才拦截。
+  // 整页 reload / 双开新窗口都是全新 window 对象，标记不存在，正常重挂载不受影响。
+  let mount = null
   try {
-    if (window.__DSH_SCIENCE_CLIENT_MOUNTED) {
+    mount = window.__DSH_SCIENCE_CLIENT_MOUNT__ || null
+    if (!mount) window.__DSH_SCIENCE_CLIENT_MOUNT__ = mount = { tab: false, body: false }
+    if (mount.tab && mount.body) {
       console.warn('[dsh-science] apply() re-invoked on an already-mounted page; keeping first registration (double-mount guard)')
       return
     }
     window.__DSH_SCIENCE_CLIENT_MOUNTED = true
     window.__DSH_SCIENCE_CLIENT_APPLIED = true
   } catch {
-    /* ignore（非浏览器环境） */
+    mount = null /* 非浏览器环境：无条件注册 */
   }
 
   // ---- 成员会话跳转（F4）------------------------------------------------------
@@ -3063,37 +3282,53 @@ export function apply(ctx) {
 
   // 右栏工作台标签页
   try {
-    ctx.effect(
-      () =>
-        ctx.sidebarRightTabs.register({
-          id: 'dsh-science/workbench',
-          kind: 'workbench',
-          title: () => '科研工作台',
-          guide: [
-            {
-              id: 'workbench',
-              order: 10,
-              title: () => '科研工作台',
-              description: () => '任务流 DAG（成员姿态/依赖跳转/收件箱）· 文章框架（确认/参考文献/快筛）· 产物（图表版本链/文件/远程/审查）（dsh-science）',
-            },
-          ],
-        }),
-      'dsh-science workbench tab type'
-    )
-    ctx.effect(
-      () =>
-        ctx.slots.inject('sidebar.right.pane.tab', () =>
-          ctx.slots.register(
-            {
-              name: 'sidebar.right.pane.tab',
-              key: 'dsh-science/workbench',
-              inject: () => ({ openMemberSession, memberOpenAvailable }),
-            },
-            WorkbenchBody,
-          ),
-        ),
-      'dsh-science workbench tab body'
-    )
+    if (!mount || !mount.tab) {
+      ctx.effect(
+        () => {
+          const dispose = ctx.sidebarRightTabs.register({
+            id: 'dsh-science/workbench',
+            kind: 'workbench',
+            title: () => '科研工作台',
+            guide: [
+              {
+                id: 'workbench',
+                order: 10,
+                title: () => '科研工作台',
+                description: () => '任务流 DAG（成员姿态/依赖跳转/收件箱）· 文章框架（确认/参考文献/快筛）· 产物（图表版本链/文件/远程/审查）（dsh-science）',
+              },
+            ],
+          })
+          if (mount) mount.tab = true
+          return () => {
+            if (mount) mount.tab = false
+            if (typeof dispose === 'function') dispose()
+          }
+        },
+        'dsh-science workbench tab type'
+      )
+    }
+    if (!mount || !mount.body) {
+      ctx.effect(
+        () => {
+          const dispose = ctx.slots.inject('sidebar.right.pane.tab', () =>
+            ctx.slots.register(
+              {
+                name: 'sidebar.right.pane.tab',
+                key: 'dsh-science/workbench',
+                inject: () => ({ openMemberSession, memberOpenAvailable }),
+              },
+              WorkbenchBody,
+            ),
+          )
+          if (mount) mount.body = true
+          return () => {
+            if (mount) mount.body = false
+            if (typeof dispose === 'function') dispose()
+          }
+        },
+        'dsh-science workbench tab body'
+      )
+    }
   } catch (err) {
     console.error('[dsh-science] sidebar tab registration failed:', err)
   }

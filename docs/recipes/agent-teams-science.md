@@ -18,7 +18,7 @@
     profiles:
       sci-research:
         members:
-          - { name: scout,    role: "文献侦察：用 sci_lit_search / sci_doi_verify 检索并核对文献，输出缺口卡" }
+          - { name: scout,    role: "文献侦察：用 web_search / web_fetch 检索并用 sci_doi_verify 核对文献，输出缺口卡" }
           - { name: analyst,  role: "数据分析：用 sci_db_query / sci_db_tables 做只读分析，禁止 sci_db_execute" }
           - { name: compute,  role: "远程计算：用 sci_ssh_probe / sci_job_submit / sci_job_status / sci_job_harvest 管理作业" }
           - { name: writer,   role: "撰写：遵循 sci-writing / sci-polish skill 起草与润色" }
@@ -32,10 +32,10 @@
 
 ```yaml
     toolPolicies:
-      scout:    { allow: [read, glob, grep, sci_lit_search, sci_protein_get, sci_chem_lookup, sci_doi_verify] }
+      scout:    { allow: [read, glob, grep, web_search, web_fetch, sci_doi_verify] }
       analyst:  { allow: [read, glob, grep, sci_db_profiles, sci_db_tables, sci_db_query, sci_figure_list] }
       compute:  { allow: [sci_ssh_profiles, sci_ssh_probe, sci_job_submit, sci_job_status, sci_job_logs, sci_job_harvest, sci_file_push, sci_file_fetch] }
-      writer:   { allow: [read, glob, grep, sci_figure_list, sci_lit_search, sci_doi_verify] }
+      writer:   { allow: [read, glob, grep, sci_figure_list, web_search, web_fetch, sci_doi_verify] }
       reviewer: { allow: [read, glob, grep, sci_doi_verify, sci_figure_list, session_event_read] }
 ```
 

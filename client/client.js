@@ -37,9 +37,71 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 var import_react = __toESM(require("react"), 1);
+
+// lib/dag.js
+function normalizedBlockedBy(task) {
+  const raw = task && Array.isArray(task.blockedBy) ? task.blockedBy : [];
+  const self = task && typeof task.id === "string" ? task.id.trim() : null;
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const id = item.trim();
+    if (!id || id === self || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+function normalizeTaskBoard(tasks) {
+  const list = Array.isArray(tasks) ? tasks : [];
+  return list.filter((t) => t && typeof t === "object" && typeof t.id === "string").map((t) => ({ ...t, blockedBy: normalizedBlockedBy(t) }));
+}
+function dependencyClosure(startId, tasks) {
+  const list = Array.isArray(tasks) ? tasks.filter((t) => t && typeof t.id === "string") : [];
+  const byId = new Map(list.map((t) => [t.id, t]));
+  const rev = /* @__PURE__ */ new Map();
+  for (const t of list) {
+    for (const dep of normalizedBlockedBy(t)) {
+      if (!rev.has(dep)) rev.set(dep, []);
+      rev.get(dep).push(t.id);
+    }
+  }
+  const upstream = [];
+  const downstream = [];
+  const related = /* @__PURE__ */ new Set();
+  if (!byId.has(startId)) return { upstream, downstream, related };
+  related.add(startId);
+  const walkUp = [startId];
+  const seenUp = /* @__PURE__ */ new Set([startId]);
+  for (let i = 0; i < walkUp.length; i++) {
+    const t = byId.get(walkUp[i]);
+    for (const dep of normalizedBlockedBy(t)) {
+      if (!byId.has(dep) || seenUp.has(dep)) continue;
+      seenUp.add(dep);
+      upstream.push(dep);
+      related.add(dep);
+      walkUp.push(dep);
+    }
+  }
+  const walkDown = [startId];
+  const seenDown = /* @__PURE__ */ new Set([startId]);
+  for (let i = 0; i < walkDown.length; i++) {
+    for (const next of rev.get(walkDown[i]) || []) {
+      if (seenDown.has(next)) continue;
+      seenDown.add(next);
+      downstream.push(next);
+      related.add(next);
+      walkDown.push(next);
+    }
+  }
+  return { upstream, downstream, related };
+}
+
+// client-src/index.jsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var inject = ["sidebarRightTabs", "slots", "resources"];
-var VERSION = "0.10.1";
+var VERSION = "0.11.0";
 var STATE_URL = "/plugins/dsh-science/state";
 var POLL_MS = 3e3;
 var teamRuntime = { hasRecordedParents: false };
@@ -153,13 +215,27 @@ function pathInsideWorkspace(absPath, workspaceRoot) {
   const root = normPath(workspaceRoot);
   return p === root ? false : p.startsWith(`${root}/`);
 }
+function normalizeClientState(raw) {
+  if (!raw || typeof raw !== "object") return raw;
+  const team = raw.team && typeof raw.team === "object" ? raw.team : { members: [], tasks: [] };
+  return {
+    ...raw,
+    team: {
+      ...team,
+      members: (Array.isArray(team.members) ? team.members : []).filter(
+        (m) => m && typeof m === "object" && typeof m.name === "string"
+      ),
+      tasks: normalizeTaskBoard(team.tasks)
+    }
+  };
+}
 function usePollState(intervalMs) {
   const [snap, setSnap] = (0, import_react.useState)({ data: null, error: null, loading: true, ts: 0 });
   const tickNow = (0, import_react.useCallback)(async (aliveObj) => {
     try {
       const res = await fetch(STATE_URL, { credentials: "same-origin" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = normalizeClientState(await res.json());
       if (!aliveObj || aliveObj.alive) setSnap({ data, error: null, loading: false, ts: Date.now() });
     } catch (err) {
       if (!aliveObj || aliveObj.alive) setSnap((s) => ({ ...s, error: err, loading: false }));
@@ -842,7 +918,7 @@ function dagLayout(tasks, ensureId, cap) {
   const height = DAG_HEAD_H + rows * (DAG_NODE_H + DAG_ROW_GAP) - DAG_ROW_GAP + 6;
   return { nodes, edges, width, height, hidden: tasks.length - chosen.length, colCounts: colTotals, tasksById };
 }
-function TaskDetailCard({ t, tasksById, onJumpTask }) {
+function TaskDetailCard({ t, tasksById, onJumpTask, chain }) {
   if (!t) return null;
   const deps = Array.isArray(t.blockedBy) ? t.blockedBy : [];
   const unfinishedDeps = deps.filter((dep) => {
@@ -915,6 +991,45 @@ function TaskDetailCard({ t, tasksById, onJumpTask }) {
           })
         ] }),
         t.desc && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, color: C.fg }, children: t.desc }),
+        chain && chain.downstream.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "div",
+          {
+            "data-task-downstream": chain.downstream.join(","),
+            style: { marginTop: 3, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, flexShrink: 0 }, children: "\u89E3\u9501\uFF1A" }),
+              chain.downstream.map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                "span",
+                {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    if (jumpable) {
+                      try {
+                        onJumpTask(id);
+                      } catch {
+                      }
+                    }
+                  },
+                  title: jumpable ? `\u70B9\u51FB\u8DF3\u8F6C\u5230 ${id}` : id,
+                  style: {
+                    display: "inline-block",
+                    padding: "0 6px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.card,
+                    fontSize: 10,
+                    lineHeight: "16px",
+                    color: C.muted,
+                    cursor: jumpable ? "pointer" : "default",
+                    fontFamily: "ui-monospace, monospace"
+                  },
+                  children: id
+                },
+                id
+              ))
+            ]
+          }
+        ),
         t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.ok }, children: "\u7ED3\u679C\uFF1A" }),
           t.result
@@ -931,14 +1046,30 @@ function TaskDetailCard({ t, tasksById, onJumpTask }) {
 }
 function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
   const [sel, setSel] = (0, import_react.useState)(null);
+  const [hoverId, setHoverId] = (0, import_react.useState)(null);
   const [expandedAll, setExpandedAll] = (0, import_react.useState)(false);
   const uidRef = (0, import_react.useRef)("");
   if (!uidRef.current) uidRef.current = `dshsci-${Math.random().toString(36).slice(2, 8)}`;
   const uid = uidRef.current;
+  const focusId = sel || hoverId || null;
+  const chain = (0, import_react.useMemo)(() => focusId ? dependencyClosure(focusId, tasks) : null, [focusId, tasks]);
+  const related = chain ? chain.related : null;
+  (0, import_react.useEffect)(() => {
+    if (!sel) return void 0;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setSel(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sel]);
   const layout = (0, import_react.useMemo)(
     () => dagLayout(tasks, focusTaskId || sel || null, expandedAll ? Infinity : DAG_CAP),
     [tasks, focusTaskId, sel, expandedAll]
   );
+  (0, import_react.useEffect)(() => {
+    if (!hoverId) return;
+    if (!layout.nodes.some((n) => n.w.t.id === hoverId)) setHoverId(null);
+  }, [layout, hoverId]);
   const vpRef = (0, import_react.useRef)(null);
   (0, import_react.useEffect)(() => {
     try {
@@ -1002,7 +1133,7 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
         "data-dag-viewport": "",
         ref: vpRef,
         style: { maxHeight: 380, overflow: "auto", border: `1px solid ${C.divider}`, borderRadius: 8, background: C.card, position: "relative" },
-        children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-dag-canvas": "", style: { position: "relative", width: layout.width, height: layout.height }, children: [
+        children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-dag-canvas": "", "data-dag-focus": focusId || void 0, style: { position: "relative", width: layout.width, height: layout.height }, children: [
           DAG_COLS.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
             "div",
             {
@@ -1040,27 +1171,35 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                   /* @__PURE__ */ (0, import_jsx_runtime.jsx)("marker", { id: `${uid}-arrow-a`, viewBox: "0 0 8 8", refX: "7", refY: "4", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M0 0 L8 4 L0 8 Z", style: { fill: C.accent } }) }),
                   /* @__PURE__ */ (0, import_jsx_runtime.jsx)("marker", { id: `${uid}-arrow-f`, viewBox: "0 0 8 8", refX: "7", refY: "4", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M0 0 L8 4 L0 8 Z", style: { fill: C.faint } }) })
                 ] }),
-                layout.edges.map((e) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "path",
-                  {
-                    "data-dag-edge": `${e.from}->${e.to}`,
-                    d: e.d,
-                    fill: "none",
-                    style: { stroke: e.active ? C.accent : C.faint, pointerEvents: "stroke" },
-                    strokeWidth: e.active ? 1.6 : 1,
-                    strokeDasharray: e.active ? void 0 : "3 3",
-                    opacity: e.active ? 0.9 : 0.55,
-                    markerEnd: e.active ? `url(#${uid}-arrow-a)` : `url(#${uid}-arrow-f)`,
-                    children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("title", { children: `${e.from} \u2192 ${e.to} \u4F9D\u8D56` })
-                  },
-                  `${e.from}->${e.to}`
-                ))
+                layout.edges.map((e) => {
+                  const hot = related !== null && related.has(e.from) && related.has(e.to);
+                  const dimmed = related !== null && !hot;
+                  const strong = hot || related === null && e.active;
+                  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                    "path",
+                    {
+                      "data-dag-edge": `${e.from}->${e.to}`,
+                      "data-dag-hot": hot ? "true" : void 0,
+                      d: e.d,
+                      fill: "none",
+                      style: { stroke: strong ? C.accent : C.faint, pointerEvents: "stroke" },
+                      strokeWidth: strong ? 1.8 : 1,
+                      strokeDasharray: e.active ? void 0 : "3 3",
+                      opacity: dimmed ? 0.18 : strong ? 0.95 : 0.55,
+                      markerEnd: strong ? `url(#${uid}-arrow-a)` : `url(#${uid}-arrow-f)`,
+                      children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("title", { children: `${e.from} \u2192 ${e.to} \u4F9D\u8D56` })
+                    },
+                    `${e.from}->${e.to}`
+                  );
+                })
               ]
             }
           ),
           layout.nodes.map(({ w, x, y, col }) => {
             const t = w.t;
             const isSel = sel === t.id;
+            const isFocus = focusId === t.id;
+            const dimmed = related !== null && !related.has(t.id);
             const running = t.status === "claimed" || t.status === "in_progress";
             const color = STATUS_COLOR[t.status] || C.faint;
             return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -1069,8 +1208,15 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                 "data-dag-node": t.id,
                 "data-status": t.status,
                 "data-col": DAG_COLS[col].label,
+                "data-dag-focus": isFocus ? "true" : void 0,
+                "data-dag-dimmed": dimmed ? "true" : void 0,
                 onClick: () => setSel(isSel ? null : t.id),
-                title: `${t.id} \xB7 ${t.subject || ""} \xB7 ${t.assignee || "\u5F85\u9886"} \xB7 \u70B9\u51FB${isSel ? "\u6536\u8D77" : "\u5C55\u5F00"}\u8BE6\u60C5`,
+                onMouseEnter: () => setHoverId(t.id),
+                onMouseLeave: () => setHoverId((cur) => cur === t.id ? null : cur),
+                onFocus: () => setHoverId(t.id),
+                onBlur: () => setHoverId((cur) => cur === t.id ? null : cur),
+                tabIndex: 0,
+                title: `${t.id} \xB7 ${t.subject || ""} \xB7 ${t.assignee || "\u5F85\u9886"} \xB7 \u60AC\u505C\u9AD8\u4EAE\u4F9D\u8D56\u94FE\uFF0C\u70B9\u51FB${isSel ? "\u6536\u8D77" : "\u5C55\u5F00"}\u8BE6\u60C5`,
                 style: {
                   position: "absolute",
                   left: x,
@@ -1078,12 +1224,15 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                   width: DAG_NODE_W,
                   height: DAG_NODE_H,
                   // F2：节点用更高层 surface（bg-layer-2）+ border-l4 边框（暗色 alpha 0.2 ≥ 0.18）
-                  border: `1px solid ${isSel ? C.accent : C.borderNode}`,
+                  border: `1px solid ${isFocus ? C.accent : C.borderNode}`,
                   borderLeft: `3px solid ${color}`,
                   borderRadius: 8,
                   background: isSel ? C.chip : C.surface,
                   padding: "3px 6px",
                   cursor: "pointer",
+                  outline: "none",
+                  opacity: dimmed ? 0.32 : 1,
+                  transition: "opacity 0.12s ease",
                   animation: running ? "dsh-sci-nodeglow 2.2s ease-in-out infinite" : void 0
                 },
                 children: [
@@ -1167,7 +1316,7 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
         ]
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 6 }, "data-task-detail-host": "", children: selTask ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskDetailCard, { t: selTask, tasksById: layout.tasksById, onJumpTask: jumpToTask }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u70B9\u51FB\u4EFB\u52A1\u8282\u70B9\u67E5\u770B\u8BE6\u60C5\uFF08\u63CF\u8FF0/\u7ED3\u679C/\u4F9D\u8D56/\u65F6\u95F4\uFF09\uFF1B\u4F9D\u8D56 chip \u53EF\u70B9\u51FB\u8DF3\u8F6C\uFF1B\u70B9\u51FB\u4E0A\u65B9\u6210\u5458\u5934\u50CF\u6253\u5F00\u4F1A\u8BDD\uFF0C\u25BE \u5C55\u5F00\u5176\u4EFB\u52A1\u5217\u8868\u3002" }) })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 6 }, "data-task-detail-host": "", children: selTask ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskDetailCard, { t: selTask, tasksById: layout.tasksById, onJumpTask: jumpToTask, chain }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u60AC\u505C\u8282\u70B9\u9AD8\u4EAE\u4E0A\u4E0B\u6E38\u4F9D\u8D56\u94FE\uFF0C\u70B9\u51FB\u67E5\u770B\u8BE6\u60C5\uFF08\u63CF\u8FF0/\u7ED3\u679C/\u4F9D\u8D56/\u89E3\u9501\uFF09\uFF0CEsc \u6536\u8D77\uFF1B\u4F9D\u8D56\u4E0E\u89E3\u9501 chip \u53EF\u70B9\u51FB\u8DF3\u8F6C\uFF1B\u70B9\u51FB\u4E0A\u65B9\u6210\u5458\u5934\u50CF\u6253\u5F00\u4F1A\u8BDD\u3002" }) })
   ] });
 }
 function TaskBoard({ tasks, focusTaskId, onClearFocus }) {
@@ -1479,7 +1628,7 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
                           if (checked) {
                             postManage({ action: "remove", role, name: entry.name }, `\u5DF2\u79FB\u9664 ${item.name}`);
                           } else {
-                            postManage({ action: "install", role, repoId: item.id }, `\u5DF2\u5B89\u88C5 ${item.name}\uFF08\u6210\u5458 spawn \u540E\u751F\u6548\uFF1B\u5DF2 spawn \u7684\u6210\u5458\u7528 sci_team_send \u901A\u77E5\uFF09`);
+                            postManage({ action: "install", role, repoId: item.id }, `\u5DF2\u5B89\u88C5 ${item.name}\uFF08\u540C\u89D2\u8272\u5DF2 spawn \u6210\u5458\u81EA\u52A8\u5524\u9192\uFF1B\u5426\u5219\u4E0B\u6B21 spawn \u751F\u6548\uFF09`);
                           }
                         },
                         style: { marginTop: 2, flexShrink: 0 }
@@ -1559,7 +1708,7 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
             ] })
           ] }, role);
         }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: 10, color: C.faint, margin: "2px 0 0" }, children: "\u5B89\u88C5\u5373 git clone --depth 1 \u5230 role-skills/<\u89D2\u8272>/ \u5E76\u751F\u6210 INDEX.md\uFF1B\u53EA\u6709\u8BE5\u89D2\u8272\u6210\u5458 spawn \u63D0\u793A\u8BCD\u643A\u5E26\u7D22\u5F15\uFF08\u8DE8\u89D2\u8272\u9694\u79BB\uFF09\u3002\u5DF2 spawn \u7684\u6210\u5458\u9700 sci_team_send \u901A\u77E5\u65B0\u6280\u80FD\u8DEF\u5F84\u3002" })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: 10, color: C.faint, margin: "2px 0 0" }, children: "\u5B89\u88C5\u5373 git clone --depth 1 \u5230 role-skills/<\u89D2\u8272>/ \u5E76\u751F\u6210 INDEX.md\uFF1B\u53EA\u6709\u8BE5\u89D2\u8272\u6210\u5458 spawn \u63D0\u793A\u8BCD\u643A\u5E26\u7D22\u5F15\uFF08\u8DE8\u89D2\u8272\u9694\u79BB\uFF09\u3002\u540C\u89D2\u8272\u5DF2 spawn \u7684\u6210\u5458\u4F1A\u81EA\u52A8\u6536\u5230\u65B0\u6280\u80FD\u8DEF\u5F84\uFF0CWeb UI \u5B89\u88C5\uFF08\u65E0 agent\uFF09\u5219\u4E0B\u6B21 spawn \u751F\u6548\u3002" })
       ]
     }
   );
@@ -1577,8 +1726,8 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
     if (toastTimer.current) clearTimeout(toastTimer.current);
   }, []);
   const team = data.team || { members: [], tasks: [] };
-  const members = Array.isArray(team.members) ? team.members : [];
-  const tasks = Array.isArray(team.tasks) ? team.tasks : [];
+  const members = Array.isArray(team.members) ? team.members.filter((m) => m && typeof m.name === "string") : [];
+  const tasks = normalizeTaskBoard(team.tasks);
   const onOpenMember = (m) => {
     try {
       if (typeof openMemberSession !== "function") throw new Error("\u6210\u5458\u4F1A\u8BDD\u8DF3\u8F6C\u4E0D\u53EF\u7528");
@@ -1714,7 +1863,23 @@ function CoreCard({ core }) {
     ] })
   ] });
 }
-function ResultRow({ r, tasksById, onOpenTask, onOpenFigure }) {
+var REVIEW_SEV_LABEL = { pass: "\u5BA1\u2713", warn: "\u5BA1!", fail: "\u5BA1\u2717", none: "\u672A\u5BA1" };
+var REVIEW_SEV_COLOR = { pass: "ok", warn: "warn", fail: "err", none: "faint" };
+function ReviewBadge({ review }) {
+  const sev = review && review.severity ? review.severity : "none";
+  const color = C[REVIEW_SEV_COLOR[sev] || "faint"] || C.faint;
+  const tip = sev === "none" ? "\u8BE5\u4E3B\u5F20\u5C1A\u65E0\u5BA1\u67E5\u8BB0\u5F55\uFF08check=blueprint-claim\uFF09\u2014\u2014\u7528 /sci-review \u6216 sci_review_send scope=evidence \u8865\u5BA1" : `\u6700\u8FD1\u5BA1\u67E5\uFF08${review.runId || "\u672A\u8BB0\u5F55"}\uFF09\uFF1A${sev}${review.message ? ` \xB7 ${review.message}` : ""}`;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    "span",
+    {
+      "data-result-review": sev,
+      title: tip,
+      style: { fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: "0 5px", lineHeight: "15px", flexShrink: 0 },
+      children: REVIEW_SEV_LABEL[sev] || sev
+    }
+  );
+}
+function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
   const [open, setOpen] = (0, import_react.useState)(false);
   const status = r.status || "planned";
   const tasks = [...resultTaskIdsOf(r, tasksById)];
@@ -1798,6 +1963,7 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure }) {
               children: SCREENING_LABEL[screening.decision] || screening.decision
             }
           ),
+          review && r.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReviewBadge, { review }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: open ? "\u25BE" : "\u25B8" })
         ]
       }
@@ -1952,11 +2118,11 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure }) {
     )
   ] });
 }
-function ResultsList({ results, tasksById, onOpenTask, onOpenFigure }) {
+function ResultsList({ results, tasksById, onOpenTask, onOpenFigure, reviewById }) {
   if (results.length === 0) {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709 Results\u3002\u8BA9\u961F\u957F\u7528 sci_result_add \u6DFB\u52A0\u652F\u6491\u6838\u5FC3\u7684\u5B50\u4E3B\u5F20\uFF08\u5EFA\u8BAE 3-5 \u4E2A\uFF0C\u6BCF\u4E2A\u4E00\u53E5\u53EF\u68C0\u9A8C\u7684 claim\uFF09\u3002" });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: results.map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResultRow, { r, tasksById, onOpenTask, onOpenFigure }, r.id)) });
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: results.map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResultRow, { r, tasksById, onOpenTask, onOpenFigure, review: reviewById ? reviewById.get(r.id) : null }, r.id)) });
 }
 var FG_PAD = 12;
 var FG_CORE_W = 240;
@@ -2507,14 +2673,28 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
     ) })
   ] });
 }
-function CoverageSection({ coverage }) {
+function CoverageSection({ coverage, resultsCount }) {
   const cov = coverage || {};
   const warnings = Array.isArray(cov.warnings) ? cov.warnings : [];
   const negative = typeof cov.negativeCount === "number" ? cov.negativeCount : 0;
   const supported = typeof cov.supportedCount === "number" ? cov.supportedCount : 0;
+  const dropped = typeof cov.droppedCount === "number" ? cov.droppedCount : 0;
+  const total = typeof cov.total === "number" ? cov.total : typeof resultsCount === "number" ? resultsCount : 0;
   if (warnings.length === 0) {
+    if (total === 0) {
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5C1A\u65E0 result\u2014\u2014\u5148 sci_result_add \u6DFB\u52A0 Results\uFF0C\u8986\u76D6\u68C0\u67E5\u624D\u6709\u5BF9\u8C61\u3002" });
+    }
+    if (supported === 0) {
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
+        "\u65E0\u53EF\u652F\u6491\u7684 result\uFF08negative ",
+        negative,
+        " \xB7 dropped ",
+        dropped,
+        " \u5DF2\u9000\u51FA\u652F\u6491\u94FE\uFF09\u2014\u2014\u6587\u7AE0\u5C1A\u65E0 supported \u8BC1\u636E\u3002"
+      ] });
+    }
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-      "\u8986\u76D6\u5B8C\u6574\uFF1A\u6BCF\u4E2A result \u90FD\u6709\u4EFB\u52A1\u4E0E\u56FE\u8868\uFF0C\u4EFB\u52A1\u5168\u90E8\u5BF9\u9F50\u5230 result\uFF08supported ",
+      "\u8986\u76D6\u5B8C\u6574\uFF1A\u5728\u7814 result \u90FD\u6709\u4EFB\u52A1\u4E0E\u56FE\u8868\uFF0C\u4EFB\u52A1\u5168\u90E8\u5BF9\u9F50\u5230 result\uFF08supported ",
       supported,
       " \xB7 negative ",
       negative,
@@ -2549,6 +2729,50 @@ function CoverageSection({ coverage }) {
     ] })
   ] });
 }
+function ReviewCoverageSection({ rc }) {
+  const counts = rc && rc.counts || {};
+  const total = typeof counts.total === "number" ? counts.total : 0;
+  const reviewed = typeof counts.reviewed === "number" ? counts.reviewed : 0;
+  const warnings = Array.isArray(rc && rc.warnings) ? rc.warnings : [];
+  const rows = [rc && rc.core, ...rc && Array.isArray(rc.results) ? rc.results : []].filter((v) => v && v.claim);
+  if (total === 0) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5C1A\u65E0\u5E26 claim \u7684\u4E3B\u5F20\u2014\u2014\u5148 sci_blueprint_set / sci_result_add \u5EFA\u7ACB\u53EF\u6838\u5BF9\u7684\u4E3B\u5F20\u3002" });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { border: `1px solid ${counts.fail > 0 ? C.err : C.border}`, borderRadius: 8, padding: "6px 10px", background: C.card }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.fg, marginBottom: 4 }, children: [
+      "\u5DF2\u5BA1 ",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [
+        reviewed,
+        "/",
+        total
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.faint }, children: [
+        "\uFF08pass ",
+        counts.pass || 0,
+        " \xB7 warn ",
+        counts.warn || 0,
+        " \xB7 fail ",
+        counts.fail || 0,
+        "\uFF09"
+      ] })
+    ] }),
+    rows.map((v) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-review-cov-row": v.id, style: { fontSize: 11, lineHeight: 1.6, color: v.severity === "fail" ? C.err : v.severity === "warn" ? C.warn : v.severity === "pass" ? C.ok : C.faint }, children: [
+      v.id,
+      "\uFF1A",
+      v.severity || "\u672A\u5BA1",
+      v.runId ? `\uFF08${v.runId}\uFF09` : "",
+      v.message ? ` \u2014 ${v.message}` : ""
+    ] }, v.id)),
+    warnings.map((w, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.warn, marginTop: 4 }, children: [
+      "\u26A0 ",
+      w
+    ] }, `w${i}`)),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint, marginTop: 4 }, children: [
+      "\u4E3B\u5F20\u7EA7\u5BA1\u67E5\u6765\u6E90\uFF1Asci_review_send scope=evidence \u6216 /sci-review \xB7 \u8BE6\u60C5\u547D\u4EE4\uFF1A",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_overview" })
+    ] })
+  ] });
+}
 function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
   const [view, setView] = (0, import_react.useState)("graph");
   const bp = data && data.blueprint || {};
@@ -2558,6 +2782,16 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
   const bpError = data && data.blueprintError || null;
   const tasksById = (0, import_react.useMemo)(() => new Map((data && data.team && data.team.tasks || []).map((t) => [t.id, t])), [data]);
   const figById = (0, import_react.useMemo)(() => new Map((data && data.figures || []).map((f) => [f.id, f])), [data]);
+  const reviewCov = bp.reviewCoverage || null;
+  const reviewById = (0, import_react.useMemo)(() => {
+    const m = /* @__PURE__ */ new Map();
+    if (reviewCov) {
+      for (const v of [...reviewCov.core ? [reviewCov.core] : [], ...Array.isArray(reviewCov.results) ? reviewCov.results : []]) {
+        if (v && v.id) m.set(v.id, v);
+      }
+    }
+    return m;
+  }, [reviewCov]);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
     bpError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
@@ -2625,9 +2859,10 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `Results\uFF08${results.length}\uFF09`, extra: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.faint }, children: [
         "\u652F\u6491\u6838\u5FC3\u7684\u5B50\u4E3B\u5F20",
         updatedAt
-      ] }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResultsList, { results, tasksById, onOpenTask, onOpenFigure }) })
+      ] }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResultsList, { results, tasksById, onOpenTask, onOpenFigure, reviewById }) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8986\u76D6\u68C0\u67E5", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverageSection, { coverage: bp.coverage }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8986\u76D6\u68C0\u67E5", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverageSection, { coverage: bp.coverage, resultsCount: results.length }) }),
+    reviewCov && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u4E3B\u5F20\u5BA1\u67E5\u8986\u76D6", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReviewCoverageSection, { rc: reviewCov }) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.muted, marginTop: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
       "\u547D\u4EE4\uFF1A",
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_result_add" }),
@@ -2845,21 +3080,72 @@ var REVIEW_STATUS_COLOR = {
 };
 function ReviewsSection({ reviews }) {
   const [expanded, setExpanded] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
-  const toggle = (id) => setExpanded((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  });
+  const [details, setDetails] = (0, import_react.useState)(() => /* @__PURE__ */ new Map());
+  const [loading, setLoading] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
+  const [errors, setErrors] = (0, import_react.useState)(() => /* @__PURE__ */ new Map());
+  const inflight = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+  const aliveRef = (0, import_react.useRef)(true);
+  (0, import_react.useEffect)(() => () => {
+    aliveRef.current = false;
+  }, []);
+  const loadDetail = async (id) => {
+    if (inflight.current.has(id)) return;
+    inflight.current.add(id);
+    setLoading((prev) => new Set(prev).add(id));
+    setErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    try {
+      const res = await fetch(`/plugins/dsh-science/review?run=${encodeURIComponent(id)}`, { credentials: "same-origin" });
+      let body = null;
+      try {
+        body = await res.json();
+      } catch {
+        body = null;
+      }
+      if (!aliveRef.current) return;
+      if (!res.ok) throw new Error(body && body.error || `HTTP ${res.status}`);
+      if (!body || !body.run) throw new Error("\u54CD\u5E94\u7F3A\u5C11 run \u6570\u636E\uFF08\u670D\u52A1\u5668\u53EF\u80FD\u4E0D\u652F\u6301 /review\uFF09");
+      setDetails((prev) => new Map(prev).set(id, body.run));
+    } catch (err) {
+      if (aliveRef.current) setErrors((prev) => new Map(prev).set(id, err && err.message || String(err)));
+    } finally {
+      inflight.current.delete(id);
+      if (aliveRef.current) {
+        setLoading((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    }
+  };
+  const toggle = (id) => {
+    const opening = !expanded.has(id);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    if (opening && !details.has(id) && !loading.has(id)) loadDetail(id);
+  };
   if (!reviews || reviews.length === 0) {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u5BA1\u67E5\u8BB0\u5F55\u3002\u7528 /sci-review \u5BA1\u67E5\u6700\u8FD1\u4E00\u8F6E\u56DE\u590D\uFF0C\u6216\u8BA9\u961F\u957F sci_review_send \u6D3E\u7ED9 reviewer\u3002" });
   }
   const rows = [...reviews].sort((a, b) => (b.finishedAt || b.startedAt || 0) - (a.finishedAt || a.startedAt || 0));
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: rows.map((r) => {
     const id = r.id || r.key;
-    const findings = Array.isArray(r.findings) ? r.findings : [];
-    const fails = findings.filter((f) => f && f.severity === "fail").length;
-    const warns = findings.filter((f) => f && f.severity === "warn").length;
+    const summaryFindings = Array.isArray(r.findings) ? r.findings : [];
+    const counts = r.counts || {
+      fail: summaryFindings.filter((f) => f && f.severity === "fail").length,
+      warn: summaryFindings.filter((f) => f && f.severity === "warn").length
+    };
+    const detail = details.get(id);
+    const findings = detail && Array.isArray(detail.findings) ? detail.findings : null;
+    const meta = detail || r;
     const isOpen = expanded.has(id);
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -2889,9 +3175,9 @@ function ReviewsSection({ reviews }) {
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: [
               "fail ",
-              fails,
+              counts.fail,
               " \xB7 warn ",
-              warns
+              counts.warn
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: fmtTime(r.finishedAt || r.startedAt) }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, flexShrink: 0 }, children: isOpen ? "\u25BE" : "\u25B8" })
@@ -2901,6 +3187,7 @@ function ReviewsSection({ reviews }) {
       isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
         "div",
         {
+          "data-review-detail": id,
           style: {
             border: `1px solid ${C.divider}`,
             borderRadius: 8,
@@ -2915,19 +3202,25 @@ function ReviewsSection({ reviews }) {
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.faint }, children: [
               id,
               " \xB7 ",
-              r.status,
+              meta.status,
               " \xB7 \u89E6\u53D1 ",
-              r.trigger || "review",
+              meta.trigger || "review",
               " \xB7 turn ",
-              typeof r.turn === "number" ? r.turn : "\u2014",
-              r.sessionId ? ` \xB7 \u4F1A\u8BDD ${String(r.sessionId).slice(0, 12)}` : ""
+              typeof meta.turn === "number" ? meta.turn : "\u2014",
+              meta.sessionId ? ` \xB7 \u4F1A\u8BDD ${String(meta.sessionId).slice(0, 12)}` : ""
             ] }),
-            findings.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4 }, children: [
+            loading.has(id) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-review-loading": "1", style: { marginTop: 4 }, children: "\u52A0\u8F7D findings\u2026" }),
+            errors.has(id) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-review-error": "1", style: { marginTop: 4, color: C.err }, children: [
+              "findings \u52A0\u8F7D\u5931\u8D25\uFF1A",
+              errors.get(id),
+              "\uFF08\u6536\u8D77\u540E\u91CD\u65B0\u5C55\u5F00\u53EF\u91CD\u8BD5\uFF09"
+            ] }),
+            findings && findings.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4 }, children: [
               "\uFF08\u65E0 findings",
-              r.status === "parse-failed" ? "\u2014\u2014\u5BA1\u67E5\u5668\u8F93\u51FA\u672A\u89E3\u6790\u4E3A JSON\uFF0C\u672C\u6B21\u4E0D\u6784\u6210\u7ED3\u8BBA" : "",
+              detail && detail.status === "parse-failed" || r.status === "parse-failed" ? "\u2014\u2014\u5BA1\u67E5\u5668\u8F93\u51FA\u672A\u89E3\u6790\u4E3A JSON\uFF0C\u672C\u6B21\u4E0D\u6784\u6210\u7ED3\u8BBA" : "",
               "\uFF09"
             ] }),
-            findings.map((f, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
+            findings && findings.map((f, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { style: { color: f && f.severity === "fail" ? C.err : f && f.severity === "warn" ? C.warn : C.ok }, children: [
                 "[",
                 String(f && f.severity || "?").toUpperCase(),
@@ -3035,14 +3328,18 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
   ] });
 }
 function apply(ctx) {
+  let mount = null;
   try {
-    if (window.__DSH_SCIENCE_CLIENT_MOUNTED) {
+    mount = window.__DSH_SCIENCE_CLIENT_MOUNT__ || null;
+    if (!mount) window.__DSH_SCIENCE_CLIENT_MOUNT__ = mount = { tab: false, body: false };
+    if (mount.tab && mount.body) {
       console.warn("[dsh-science] apply() re-invoked on an already-mounted page; keeping first registration (double-mount guard)");
       return;
     }
     window.__DSH_SCIENCE_CLIENT_MOUNTED = true;
     window.__DSH_SCIENCE_CLIENT_APPLIED = true;
   } catch {
+    mount = null;
   }
   function service(name) {
     try {
@@ -3089,36 +3386,54 @@ function apply(ctx) {
     }
   }
   try {
-    ctx.effect(
-      () => ctx.sidebarRightTabs.register({
-        id: "dsh-science/workbench",
-        kind: "workbench",
-        title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
-        guide: [
-          {
-            id: "workbench",
-            order: 10,
+    if (!mount || !mount.tab) {
+      ctx.effect(
+        () => {
+          const dispose = ctx.sidebarRightTabs.register({
+            id: "dsh-science/workbench",
+            kind: "workbench",
             title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
-            description: () => "\u4EFB\u52A1\u6D41 DAG\uFF08\u6210\u5458\u59FF\u6001/\u4F9D\u8D56\u8DF3\u8F6C/\u6536\u4EF6\u7BB1\uFF09\xB7 \u6587\u7AE0\u6846\u67B6\uFF08\u786E\u8BA4/\u53C2\u8003\u6587\u732E/\u5FEB\u7B5B\uFF09\xB7 \u4EA7\u7269\uFF08\u56FE\u8868\u7248\u672C\u94FE/\u6587\u4EF6/\u8FDC\u7A0B/\u5BA1\u67E5\uFF09\uFF08dsh-science\uFF09"
-          }
-        ]
-      }),
-      "dsh-science workbench tab type"
-    );
-    ctx.effect(
-      () => ctx.slots.inject(
-        "sidebar.right.pane.tab",
-        () => ctx.slots.register(
-          {
-            name: "sidebar.right.pane.tab",
-            key: "dsh-science/workbench",
-            inject: () => ({ openMemberSession, memberOpenAvailable })
-          },
-          WorkbenchBody
-        )
-      ),
-      "dsh-science workbench tab body"
-    );
+            guide: [
+              {
+                id: "workbench",
+                order: 10,
+                title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
+                description: () => "\u4EFB\u52A1\u6D41 DAG\uFF08\u6210\u5458\u59FF\u6001/\u4F9D\u8D56\u8DF3\u8F6C/\u6536\u4EF6\u7BB1\uFF09\xB7 \u6587\u7AE0\u6846\u67B6\uFF08\u786E\u8BA4/\u53C2\u8003\u6587\u732E/\u5FEB\u7B5B\uFF09\xB7 \u4EA7\u7269\uFF08\u56FE\u8868\u7248\u672C\u94FE/\u6587\u4EF6/\u8FDC\u7A0B/\u5BA1\u67E5\uFF09\uFF08dsh-science\uFF09"
+              }
+            ]
+          });
+          if (mount) mount.tab = true;
+          return () => {
+            if (mount) mount.tab = false;
+            if (typeof dispose === "function") dispose();
+          };
+        },
+        "dsh-science workbench tab type"
+      );
+    }
+    if (!mount || !mount.body) {
+      ctx.effect(
+        () => {
+          const dispose = ctx.slots.inject(
+            "sidebar.right.pane.tab",
+            () => ctx.slots.register(
+              {
+                name: "sidebar.right.pane.tab",
+                key: "dsh-science/workbench",
+                inject: () => ({ openMemberSession, memberOpenAvailable })
+              },
+              WorkbenchBody
+            )
+          );
+          if (mount) mount.body = true;
+          return () => {
+            if (mount) mount.body = false;
+            if (typeof dispose === "function") dispose();
+          };
+        },
+        "dsh-science workbench tab body"
+      );
+    }
   } catch (err) {
     console.error("[dsh-science] sidebar tab registration failed:", err);
   }

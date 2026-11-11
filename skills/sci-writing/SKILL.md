@@ -9,7 +9,7 @@ description: 学术论文写作规范与流程。撰写或修改论文任何章�
 
 1. 明确目标期刊与文章类型（Article/Letter/Review）。
 2. 先列大纲（IMRaD 骨架 + 每节 3-5 个要点），与用户确认后再展开。
-3. 盘点已有材料：图表（`sci_figure_list`）、数据（`sci_db_query` 结果）、文献（`sci_lit_search` 记录）。
+3. 盘点已有材料：图表（`sci_figure_list`）、数据（`sci_db_query` 结果）、文献（`web_search` 检索记录 + `sci_doi_verify` 核对结论）。
 
 ## 各章节要点
 

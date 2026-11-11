@@ -46,6 +46,21 @@ dsh plugin --profile web add SPYfighting/deepseek-science
 3. **文章框架** tab 实时展示 核心→Results→任务 的对齐与覆盖状态
 4. 任意时刻 `/sci-review` 审查最近一轮工作（数字溯源/图文一致/伪造检测）
 
+## Configuration
+
+Optional file `$DSH_HOME/dsh-science/config.json` (edit takes effect immediately, no restart):
+
+```json
+{ "falsificationThreshold": 2, "blockedGate": "warn" }
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `falsificationThreshold` | `2` | Negative-result count that triggers the falsification-risk warning (with zero supported results). Positive integer. |
+| `blockedGate` | `"warn"` | Dispatch dependency gate: `warn` = dispatch anyway and report unresolved deps; `hard` = refuse dispatch until every `blocked_by` task is completed. |
+
+中文：可选配置 `$DSH_HOME/dsh-science/config.json`，改即生效。`falsificationThreshold` 为证伪风险触发的负面结果数阈值（正整数，默认 2）；`blockedGate` 为派单依赖闸门（`warn` 软警告默认 / `hard` 依赖未完成拒绝派发）。文件缺失或损坏时按默认值运行。
+
 ## Documentation
 
 - [交接文档 HANDOFF](HANDOFF.md)（目的/需求对照/待办/验证方法）
