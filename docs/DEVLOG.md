@@ -787,3 +787,18 @@ finding，并贯通 /state、overview、export、工作台 UI（规格见 SPEC �
 - README 改为统一中文说明；英文只保留产品名、命令、接口名和必要技术标识符。
 - `HANDOFF.md` 是本地跨会话协作记录，不是插件运行或用户文档的一部分；从 Git 跟踪、README 文档入口和 npm 发布清单中移除，并加入 `.gitignore`。
 - 验证：`npm test` 235 tests / 233 pass / 0 fail / 2 skip；`npm pack --dry-run --json` 为 77 files，清单中不再包含 `HANDOFF.md`。本地文件仍然存在，并由 `.gitignore` 忽略。
+
+## 2026-11-12：v0.14.0 DSH 论文证据主干 v2 与论文驾驶舱
+
+- 架构：新增纯领域模块 `lib/paperspine.js`。旧蓝图读取时无损迁移到 schema v2；Result 从“章节/主张/证据状态混合对象”扩展为叙事单元，下设稳定 Claim、Evidence、文章角色和呈现决策。
+- 确认：核心和 Result 的确认由布尔值升级为绑定 `revisionId + SHA-256 contentHash` 的凭据；语义修改使旧确认失效。`sci_blueprint_confirm` 增加宿主审批卡，`sci_team_dispatch` 校验当前凭据后才创建任务。
+- 科学语义：阴性结果不再自动退出支撑链；证据方向与文章角色分离。已核验证据必须记录来源定位和允许解释。呈现方式支持图、表、正文、补充材料和不展示，不再为每个 Result 机械要求图件或参考文献。
+- 编排：新增探索、构架、执行、综合、撰写、审计冻结六阶段；共享质控/公共方法任务可通过 `result_ids` 同时绑定多个 Result。新增 Claim、Evidence、阶段和投稿检查四类工具。
+- 就绪状态：分别计算 scientific、manuscript、submission，不保存主观百分比。投稿检查覆盖数据与代码、伦理、报告规范和局限性；输出明确阻塞原因和下一项决策。
+- 审查：审查提示优先使用 `claim-id@rN`，覆盖计算兼容旧文本匹配；Claim 润色后仍可定位原审查对象。
+- UI：默认进入论文驾驶舱；新增六阶段轨、三类就绪指标、关键决策、Result 证据卡、投稿检查和三视图切换。关系图增加 Claim/Evidence 叶节点；共享任务显示多个 Result 徽章；团队页调整为执行层。
+- 文档：README 说明 PaperSpine 仅是设计参考，DSH 论文证据主干 v2 不是其分支、后续版本或运行依赖；SPEC 新增 §22。
+- 阶段闸门：进入 `draft` 至少需要一个 Result 的科学证据就绪；进入最终 `audit` 要求所有纳入正文的 Result 文稿就绪，避免用局部完成冒充整篇可审。
+- 最终验证：`npm run build:client` 成功；全量测试 243 tests / 241 pass / 0 fail / 2 skip。两项 skip 仍是 Windows 沙箱无法创建符号链接/联接的环境限制。
+- 真实宿主 UI：把本地发布包装入隔离 DSH Web profile，在 Edge/Playwright 中检查 1280 × 720 与 760 × 900 两种视口；论文驾驶舱、关系图、团队执行、DAG 横向滚动和 Result 筛选均正常，浏览器控制台 0 error / 0 warning。窄屏成员卡最小宽度增至 132 px。
+- 发布包：`npm pack --dry-run --json` 为 78 files，约 0.49 MB 压缩、1.97 MB 解包；包含 `lib/paperspine.js` 与重建后的客户端，不包含本地 `HANDOFF.md`。

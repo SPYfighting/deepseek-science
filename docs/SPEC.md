@@ -1,6 +1,6 @@
 # dsh-science 功能规格说明书
 
-版本：v0.13.0 · 更新日期：2026-11-12 · 目标 DSH：`>=0.2.0 <0.3.0`（当前 0.2.2-rc.1）
+版本：v0.14.0 · 更新日期：2026-11-12 · 目标 DSH：`>=0.2.0 <0.3.0`（当前 0.2.2-rc.1）
 
 对标基准：Anthropic Claude Science v0.1.47（本机逆向侦察 + 官方文档）；参考实现：aipoch/open-science（Apache-2.0）、OpenAI4S（MIT）、synthetic-sciences/openscience（Apache-2.0）、ai4s-research/open-science（MIT）。
 
@@ -357,3 +357,16 @@ DOCTYPE ENTITY；字符引用解码（含省略分号的 `&#106` 形式）、XML
 - 前检内核：`lib/figureqa.js` 解析 PNG/JPEG/GIF/TIFF 像素、SVG viewBox/物理尺寸/字号与 PDF MediaBox；按最终宽度计算位图有效 dpi，并检查最大版面、代码、源数据、统计说明和模板许可。面板裁切、颜色/标尺、科学真实性与图注一致性保留为人工项。
 - 论文进度：`paperProgressOf` 从任务板、per-result 参考文献、图件审计和主张审查实时推导，不存主观百分比。团队页可按 Result 过滤任务；文章框架节点显示任务/文献/图件计数和唯一下一步；产物页显示图件计划、前检明细与可操作修复建议。
 - 第三方图库：Scientific Figure Library 作为独立 dsh 插件入口放在技能库，不进入角色 skill 克隆目录。插件只声明本地预览/确切版本/许可记录的兼容工作流，不声称内置第三方模板或自动执行其代码。
+
+## 22. DSH 论文证据主干 v2 与论文驾驶舱（v0.14.0）
+
+- 领域层：新增 `lib/paperspine.js`，集中负责 v1 蓝图兼容迁移、稳定语义摘要、版本化确认及科学/文稿/投稿三类就绪状态。旧 `confirmed=true` 首次读取时转换为 `legacy-migration` 确认凭据；此后语义修改生成新修订并使旧凭据失效。
+- 确认硬闸门：`sci_blueprint_confirm` 经 `tools/pre-execute` 显示宿主审批卡，凭据保存 `revisionId`、`contentHash`、`confirmedBy`、`confirmedAt` 和 `source`。`sci_team_dispatch` 在任务序号递增前检查核心及全部目标 Result 的当前凭据。
+- 科学模型：Result 是文章叙事单元；其下 `claims[]` 保存稳定 ID 与修订，`evidence[]` 保存方向、核验状态、来源定位、条件、不确定性、允许解释和禁止外推。`state=verified` 必须有来源定位和允许解释。
+- 阴性结果：`direction=supports|contradicts|inconclusive|not_applicable` 与 `manuscriptRole=main|validation|control|boundary|supplement|excluded` 分离。`negative` 兼容状态不再自动豁免任务、证据和呈现检查；只有 `excluded`/`dropped` 退出文章。
+- 共享工作：`sci_team_dispatch` 支持 `result_ids` 和 `task_role=shared`；任务板保存 `resultIds[]`，每个目标 Result 双向登记同一任务。旧 `resultId` 保留为首个目标以兼容已有 UI 和状态文件。
+- 呈现决策：`presentation.mode=figure|table|prose|supplement|omit|undecided`。不再强制每个 Result 都有图或至少一条参考文献；选择 figure 时才要求批准图件，已有参考文献则必须全部核验。
+- 阶段：`explore → frame → execute → synthesize → draft → audit`。`execute` 及后续阶段要求有效确认；`draft` 至少一个 Result 科学就绪；`audit` 要求所有纳入正文的 Result 文稿就绪。投稿检查覆盖数据与代码、伦理、报告规范和局限性。
+- 审查定位：审查提示使用 `claim-id@rN` 稳定标识符；`reviewCoverageOf` 同时兼容旧文本匹配，并把稳定标识对回所属 Result，避免 Claim 文本润色后审查结论串线。
+- UI：默认首页改为“论文驾驶舱”，包含阶段轨、核心确认修订、关键决策、三类就绪计数、Result 证据卡和投稿检查。关系图新增 Claim/Evidence 叶节点及详情；团队任务可显示多个 Result 徽章，团队页作为执行层保留。
+- 新增工具：`sci_claim_add`、`sci_evidence_add`、`sci_blueprint_stage`、`sci_submission_check`；`sci_result_add/update`、`sci_team_dispatch`、`sci_blueprint_overview/export` 扩展 v2 字段与输出。

@@ -27,6 +27,13 @@ const { apply } = await import('../lib/index.js')
 const { registerStateRoute } = await import('../lib/httpdata.js')
 const { registerDbTools } = await import('../lib/db.js')
 const { registerSshTools, sshProfilePoolKey } = await import('../lib/ssh.js')
+const {
+  normalizePaperSpine,
+  confirmEntityRevision,
+  isConfirmationCurrent,
+  reviseEntity,
+  paperSpineViewOf,
+} = await import('../lib/paperspine.js')
 
 const dataDir = dataDirOf()
 const stateFiles = ['config.json', 'team.json', 'blueprint.json', 'figures.json', 'figure-plans.json', 'reviews.json', 'db-profiles.json', 'ssh-profiles.json', 'ssh-jobs.json', 'role-skills.json']
@@ -43,6 +50,140 @@ function resetState() {
 function writeConfig(obj) {
   writeFileSync(join(dataDir, 'config.json'), JSON.stringify(obj), 'utf8')
 }
+
+// ---------------------------------------------------------------------------
+describe('DSH 论文证据主干 v2', () => {
+  test('旧蓝图迁移后区分证据方向与文章角色，阴性结果不再自动退出支撑链', () => {
+    const bp = normalizePaperSpine({
+      core: { claim: '核心主张', confirmed: true },
+      results: [
+        { id: 'res-1', claim: '阴性对照未观察到效应', status: 'negative' },
+        { id: 'res-2', claim: '弃用结果', status: 'dropped' },
+      ],
+      resultSeq: 2,
+    })
+    assert.equal(bp.schemaVersion, 2)
+    assert.equal(bp.results[0].direction, 'contradicts')
+    assert.equal(bp.results[0].manuscriptRole, 'boundary')
+    assert.equal(bp.results[1].manuscriptRole, 'excluded')
+    const view = paperSpineViewOf(bp, { tasks: [] }, {}, { results: [] })
+    assert.equal(view.results[0].excluded, false)
+    assert.equal(view.results[1].excluded, true)
+    assert.ok(view.results[0].readiness.scientific.blockers.includes('尚无可核验证据'))
+  })
+
+  test('确认凭据绑定语义修订与内容摘要，语义修改后旧确认立即失效', () => {
+    const bp = normalizePaperSpine({ core: { title: 'T', claim: 'C' }, results: [], resultSeq: 0 })
+    const receipt = confirmEntityRevision(bp.core, 'core', { source: 'conversation', confirmedAt: 123 })
+    assert.equal(receipt.revisionId, 'core-r1')
+    assert.equal(isConfirmationCurrent(bp.core, 'core'), true)
+    bp.core.claim = 'C2'
+    reviseEntity(bp.core)
+    assert.equal(bp.core.confirmed, false)
+    assert.equal(isConfirmationCurrent(bp.core, 'core'), false)
+    assert.equal(bp.core.revision, 2)
+  })
+
+  test('就绪状态按科学、文稿、投稿分层；正文呈现不强制每个 Result 配图', () => {
+    const bp = normalizePaperSpine({
+      core: { claim: 'C', confirmed: true },
+      results: [{
+        id: 'res-1', claim: 'R', confirmed: true, status: 'supported',
+        presentation: { mode: 'prose', rationale: '用一句结果描述即可' },
+        evidence: [{ id: 'ev-1', claimIds: ['res-1-claim-1'], direction: 'supports', state: 'verified', sourceLocator: 'results.csv#row=2', allowedInterpretation: 'R' }],
+        references: [], tasks: ['task-1'], figures: [],
+      }],
+      resultSeq: 1,
+      submission: {
+        dataCode: { status: 'complete' }, ethics: { status: 'not_applicable' },
+        reporting: { status: 'complete' }, limitations: { status: 'complete' },
+      },
+    })
+    const review = { results: [{ id: 'res-1', severity: 'pass' }] }
+    const view = paperSpineViewOf(bp, { tasks: [{ id: 'task-1', status: 'completed', resultIds: ['res-1'] }] }, {}, review)
+    const readiness = view.results[0].readiness
+    assert.equal(readiness.scientific.state, 'ready')
+    assert.equal(readiness.manuscript.state, 'ready')
+    assert.equal(readiness.submission.state, 'ready')
+    assert.equal(readiness.manuscript.blockers.includes('尚无批准图件'), false)
+  })
+
+  test('工具层可记录 Claim、证据包、呈现决策、研究阶段和投稿检查', async () => {
+    resetState()
+    const tools = {}
+    registerBlueprintTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+    await tools.sci_blueprint_set.execute({ core_title: 'T', claim: 'C' }, {})
+    await tools.sci_blueprint_confirm.execute({ kind: 'core', confirmation_source: 'conversation' }, {})
+    const added = await tools.sci_result_add.execute({ result_title: 'R1', claim: '主 Claim', purpose: '验证主要效应' }, {})
+    await tools.sci_blueprint_confirm.execute({ kind: 'result', result_id: added.resultId }, {})
+    const claim = await tools.sci_claim_add.execute({ result_id: added.resultId, claim: '边界 Claim' }, {})
+    await tools.sci_blueprint_confirm.execute({ kind: 'result', result_id: added.resultId }, {})
+    const evidence = await tools.sci_evidence_add.execute({
+      result_id: added.resultId, claim_ids: [claim.claimId], direction: 'supports', state: 'verified',
+      source_locator: 'analysis/output.csv#L2', allowed_interpretation: '该效应在所测条件下成立',
+      prohibited_interpretation: '不能外推到未测试物种', conditions: 'n=6 biological replicates', uncertainty: '95% CI 1.2–2.1',
+    }, {})
+    assert.match(evidence.evidenceId, /^res-1-ev-/)
+    await assert.rejects(
+      tools.sci_result_update.execute({ result_id: added.resultId, presentation_mode: 'omit' }, {}),
+      /presentation_rationale|呈现理由/,
+    )
+    await tools.sci_result_update.execute({
+      result_id: added.resultId, direction: 'supports', evidence_state: 'verified',
+      manuscript_role: 'main', presentation_mode: 'prose', presentation_rationale: '无需单独成图',
+    }, {})
+    await tools.sci_submission_check.execute({ item: 'ethics', status: 'not_applicable', note: '不涉及人或动物' }, {})
+    await tools.sci_blueprint_stage.execute({ stage: 'execute' }, {})
+    const overview = await tools.sci_blueprint_overview.execute({}, {})
+    assert.equal(overview.paperSpine.stage, 'execute')
+    assert.equal(overview.results[0].claims.length, 2)
+    assert.equal(overview.results[0].evidence.length, 1)
+    assert.equal(overview.results[0].presentation.mode, 'prose')
+    assert.equal(overview.submission.ethics.status, 'not_applicable')
+  })
+
+  test('确认工具经宿主审批卡向用户显示，不能只靠模型自行置位', async () => {
+    const gates = []
+    registerBlueprintTools({
+      tools: { register() {} },
+      on: (event, handler) => { if (event === 'tools/pre-execute') gates.push(handler) },
+    }, {})
+    assert.equal(gates.length, 1)
+    const next = async () => 'next'
+    const decision = await gates[0]({ name: 'sci_blueprint_confirm', arguments: { kind: 'core' } }, next)
+    assert.equal(decision.kind, 'ask')
+    assert.match(decision.reason, /requires user approval/)
+    assert.match(decision.displayReason.zh, /确认|文章承诺/)
+    assert.equal(await gates[0]({ name: 'sci_blueprint_overview', arguments: {} }, next), 'next')
+  })
+
+  test('进入最终 audit 前要求所有纳入正文的 Result 文稿就绪', async () => {
+    resetState()
+    const tools = {}
+    registerBlueprintTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+    await tools.sci_blueprint_set.execute({ core_title: 'T', claim: 'C' }, {})
+    await tools.sci_blueprint_confirm.execute({ kind: 'core' }, {})
+    const ready = await tools.sci_result_add.execute({ result_title: 'R1', claim: '已就绪主张' }, {})
+    const blocked = await tools.sci_result_add.execute({ result_title: 'R2', claim: '未就绪主张' }, {})
+    await tools.sci_blueprint_confirm.execute({ kind: 'result', result_id: ready.resultId }, {})
+    await tools.sci_blueprint_confirm.execute({ kind: 'result', result_id: blocked.resultId }, {})
+    const claimId = loadBlueprint().results.find((r) => r.id === ready.resultId).claims[0].id
+    await tools.sci_evidence_add.execute({
+      result_id: ready.resultId, claim_ids: [claimId], direction: 'supports', state: 'verified',
+      source_locator: 'analysis/ready.csv#row=2', allowed_interpretation: '仅支持已就绪主张',
+    }, {})
+    await tools.sci_result_update.execute({
+      result_id: ready.resultId, presentation_mode: 'prose', presentation_rationale: '正文一句话足够',
+    }, {})
+    writeFileSync(join(dataDir, 'reviews.json'), JSON.stringify({
+      review1: { id: 'review1', finishedAt: Date.now(), findings: [{ check: 'blueprint-claim', claim: `${ready.resultId}@r1`, severity: 'pass', message: '通过' }] },
+    }), 'utf8')
+    await assert.rejects(
+      tools.sci_blueprint_stage.execute({ stage: 'audit' }, {}),
+      /所有纳入正文的 Result|R2|res-2/,
+    )
+  })
+})
 
 const FINDING = { severity: 'pass', check: 'number-traceability', claim: 'c', evidence: 'e', message: 'ok' }
 const COMPLETE_FINDINGS = [
@@ -454,6 +595,19 @@ describe('蓝图×审查：主张级审查覆盖（reviewcov）', () => {
     const b = { core: { claim: 'ＭＹＣ drives tumor proliferation', confirmed: false }, results: [] }
     const cov = reviewCoverageOf(b, { r1: run('r1', 100, [f('myc drives tumor proliferation', 'pass')]) })
     assert.equal(cov.core.severity, 'pass')
+  })
+
+  test('稳定 Claim 修订标识符可直接对回 Result，避免文本改写后审查串线', () => {
+    const b = {
+      core: { claim: 'Core', confirmed: true, revision: 2 },
+      results: [{
+        id: 'res-1', claim: 'Primary', confirmed: true, revision: 3,
+        claims: [{ id: 'res-1-claim-1', text: 'Primary', revision: 4, status: 'active' }],
+      }],
+    }
+    const cov = reviewCoverageOf(b, { r1: run('r1', 100, [f('res-1-claim-1@r4', 'pass')]) })
+    assert.equal(cov.results[0].severity, 'pass')
+    assert.equal(cov.results[0].revisionId, 'res-1-r3')
   })
 
   test('finishedAt 为 ISO 字符串时按真实时间排序（最新覆盖最旧）', () => {
@@ -873,6 +1027,29 @@ describe('blocked_by 闸门（默认软警告，config blockedGate=hard 硬闸�
     assert.equal(out.ok, true)
     assert.ok(!('dependencyGate' in out))
   })
+
+  test('共享工作可一次绑定多个已确认 Result，并双向写入任务板与蓝图', async () => {
+    seedTeam([])
+    writeFileSync(join(dataDir, 'blueprint.json'), JSON.stringify({
+      core: { title: 't', claim: 'c', confirmed: true },
+      results: [
+        { id: 'res-1', claim: 'x', confirmed: true, status: 'planned', tasks: [], figures: [] },
+        { id: 'res-2', claim: 'y', confirmed: true, status: 'planned', tasks: [], figures: [] },
+      ],
+      resultSeq: 2,
+    }), 'utf8')
+    const { tools } = teamCtx()
+    const out = await tools.sci_team_dispatch.execute({
+      subject: '统一质控', task_desc: '同一套质控服务两个 Result', result_ids: ['res-1', 'res-2'], task_role: 'shared',
+    }, exec)
+    assert.equal(out.ok, true)
+    const team = JSON.parse(readFileSync(join(dataDir, 'team.json'), 'utf8'))
+    assert.deepEqual(team.tasks[0].resultIds, ['res-1', 'res-2'])
+    assert.equal(team.tasks[0].taskRole, 'shared')
+    const bp = loadBlueprint()
+    assert.ok(bp.results[0].tasks.includes(out.taskId))
+    assert.ok(bp.results[1].tasks.includes(out.taskId))
+  })
 })
 
 describe('r1-F1：蓝图确认是派单硬闸门', () => {
@@ -928,10 +1105,16 @@ describe('r1-F7：per-result DOI 与 usedAs 工作流', () => {
     globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ message: { title: ['Crossref canonical title'] } }) })
     try {
       await assert.rejects(tools.sci_result_reference_add.execute({ result_id: 'res-1', ref_doi: '10.1/x', used_as: 'wrong' }, {}), /used_as/)
-      const method = await tools.sci_result_reference_add.execute({ result_id: 'res-1', ref_doi: '10.1/X', ref_title: 'wrong title', used_as: 'method' }, {})
+      const method = await tools.sci_result_reference_add.execute({
+        result_id: 'res-1', ref_doi: '10.1/X', ref_title: 'wrong title', used_as: 'method',
+        claim_ids: ['res-1-claim-1'], relation: 'supports', source_locator: 'Methods, p.4',
+      }, {})
       const evidence = await tools.sci_result_reference_add.execute({ result_id: 'res-1', ref_doi: 'https://doi.org/10.1/x', used_as: 'evidence' }, {})
       assert.equal(method.reference.title, 'Crossref canonical title')
       assert.equal(method.reference.providedTitle, 'wrong title')
+      assert.deepEqual(method.reference.claimIds, ['res-1-claim-1'])
+      assert.equal(method.reference.relation, 'supports')
+      assert.equal(method.reference.sourceLocator, 'Methods, p.4')
       assert.equal(evidence.referencesCount, 2)
       const verified = await tools.sci_result_reference_verify.execute({ result_id: 'res-1', ref_doi: '10.1/x', used_as: 'method' }, {})
       assert.equal(verified.ok, true)
@@ -1887,7 +2070,7 @@ describe('第七轮：空白状态文案不虚报完整', () => {
     }
   })
 
-  test('只剩 negative/dropped 时不说覆盖完整', async () => {
+  test('negative 仍进入证据链，只有 excluded/dropped 才退出', async () => {
     writeFileSync(join(dataDir, 'blueprint.json'), JSON.stringify({
       core: { claim: 'c', confirmed: true },
       results: [{ id: 'res-1', status: 'negative', claim: 'x', tasks: [], figures: [] }],
@@ -1895,14 +2078,15 @@ describe('第七轮：空白状态文案不虚报完整', () => {
     const cov = coverageOf(loadBlueprint(), { tasks: [] }, {})
     assert.equal(cov.total, 1)
     assert.equal(cov.supportedCount, 0)
-    assert.deepEqual(cov.warnings, [])
+    assert.ok(cov.warnings.some((w) => /res-1 无任务/.test(w)))
+    assert.ok(cov.warnings.some((w) => /尚未决定呈现方式/.test(w)))
     const tools = {}
     const cwd = mkdtempSync(join(tmpdir(), 'dsh-export-neg-'))
     try {
       registerBlueprintTools({ tools: { register: (d) => { tools[d.name] = d } }, workingDirectory: { get: () => cwd } }, {})
       await tools.sci_blueprint_export.execute({}, { agent: { session: {} } })
       const md = readFileSync(join(cwd, 'research', 'blueprint-report.md'), 'utf8')
-      assert.match(md, /无可支撑的 result（negative 1 · dropped 0）/)
+      assert.doesNotMatch(md, /negative.*已退出支撑链/)
       assert.ok(!md.includes('覆盖完整'))
     } finally {
       rmSync(cwd, { recursive: true, force: true })

@@ -1,19 +1,19 @@
 # 🧪 dsh-science — DeepSeek Harness 科研工作台插件
 
-`dsh-science` 把 DeepSeek Harness 会话扩展为可追踪的科研团队工作台。9 个专业角色由队长统一调度，围绕论文蓝图推进文献、分析、模拟、绘图、写作、审查与汇报工作。
+`dsh-science` 把 DeepSeek Harness 会话扩展为可追踪的科研团队工作台。9 个专业角色由队长统一调度，以“科学主张—证据—文章呈现”为主干推进文献、分析、模拟、绘图、写作、审查与汇报工作。
 
 [![许可证：MIT](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-yellow.svg)](LICENSE)
 [![DSH 插件](https://img.shields.io/badge/DSH-%E6%8F%92%E4%BB%B6-1B6EC2)](https://github.com/topics/dsh-plugin)
-[![版本：0.13.0](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.13.0-blue)](package.json)
+[![版本：0.14.0](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.14.0-blue)](package.json)
 
 ## 功能概览
 
 | 模块 | 作用 |
 |---|---|
 | 科研团队 | 文献调研、课题设计、数据分析、计算模拟、模型训练、科研绘图、文章撰写、科研审查和汇报制作 9 个角色 |
-| 论文蓝图 | 用“核心主张 → 结果模块（Result）→ 任务 → 图表证据”组织论文；蓝图未确认时禁止队长派发执行任务 |
+| 论文证据主干 | 用“核心贡献 → Result → Claim → Evidence”组织研究；确认凭据绑定具体修订，未确认不能进入正式执行 |
 | 团队任务图 | 用任务依赖图（DAG）展示小队状态、当前工作、任务依赖与阻塞原因，并可按 Result 聚焦 |
-| 论文框架 | 汇总每个 Result 的任务、DOI 核对、图件终审、主张审查、完成进度和下一步行动 |
+| 论文驾驶舱 | 展示探索到审计冻结的阶段、关键决策，以及每个 Result 的科学、文稿、投稿三类就绪状态 |
 | 科研图件 | 支持绘图计划、版本登记、PDF/SVG/位图、期刊尺寸与有效分辨率前检、源数据追踪和人工终审 |
 | 数据与计算 | SQLite、PostgreSQL、MySQL 只读优先查询，以及 SSH 远程作业提交、监控、诊断和结果收割 |
 | 自动审查 | 核对数字溯源、主张与执行一致性、图文一致性、引用卫生、内容真实性和计划完成度 |
@@ -37,12 +37,12 @@ dsh plugin --profile web add github:SPYfighting/deepseek-science
 
 ## 快速开始
 
-1. 打开“科研工作台”中的“团队”页面，生成科研团队；也可让队长调用 `sci_team_spawn_all`。
-2. 向队长说明科研目标。队长先建立论文蓝图并复述核心主张与各个 Result。
-3. 确认蓝图后，队长才能拆分并派发执行任务；未确认的核心主张或 Result 不允许进入执行阶段。
-4. 在“团队”页面查看任务依赖和成员状态，在“论文框架”页面查看各 Result 的真实计划与进度。
-5. 绘图按 `sci_figure_plan → sci_figure_register → sci_figure_audit → 研究者人工终审` 执行。
-6. 使用 `/sci-review` 审查最近一轮工作；解析失败时审查器会自动重试一次，仍失败则按失败关闭处理。
+1. 打开“科研工作台”，默认进入“论文驾驶舱”。先说明科研问题和已有材料；探索阶段不要求提前写死结论。
+2. 队长用 `sci_blueprint_set` 建立核心贡献，用 `sci_result_add` 建立 3–6 个叙事单元，再用 `sci_claim_add` 拆成可独立核验的 Claim。
+3. 用户通过审批卡确认核心与 Result 当前修订后，队长才可进入 `execute` 并派发任务；共享质控或公共方法可以同时绑定多个 Result。
+4. 实际证据用 `sci_evidence_add` 记录来源定位、方向、条件、不确定性、允许解释和禁止外推；支持、反驳和不确定结果都保留。
+5. 每个 Result 明确选择图、表、正文、补充材料或不展示；只有选择图时才进入 `sci_figure_plan → sci_figure_register → sci_figure_audit → 研究者人工终审`。
+6. 在驾驶舱查看科学、文稿、投稿三类就绪状态；使用 `/sci-review` 审查，解析失败会自动重试一次，仍失败则按失败关闭处理。
 
 ## 科研图件质量边界
 
@@ -89,7 +89,7 @@ Scientific Figure Library 以独立可选插件提供，不会混入角色技能
 - [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)（MIT）：路由与执行角色的双层架构
 - [AcademicForge](https://github.com/HughYau/AcademicForge)（MIT）：计算技能的验证阶梯与诊断表
 - [K-Dense scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)（MIT）：工具档案模式
-- [PaperSpine](https://github.com/WUBING2023/PaperSpine)、[ARS academic-research-skills](https://github.com/Imbad0202/academic-research-skills) 和 [nature-skills](https://github.com/Yuan1z0825/nature-skills)：论文蓝图、学术写作与科研技能设计参考
+- [PaperSpine](https://github.com/WUBING2023/PaperSpine)、[ARS academic-research-skills](https://github.com/Imbad0202/academic-research-skills) 和 [nature-skills](https://github.com/Yuan1z0825/nature-skills)：论文证据组织、学术写作与科研技能设计参考。DSH 论文证据主干 v2 是本插件的自主实现，不是 PaperSpine 的分支、后续版本或运行依赖
 
 ## 许可证
 

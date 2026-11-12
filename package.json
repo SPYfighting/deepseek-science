@@ -1,6 +1,6 @@
 {
   "name": "dsh-science",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Scientific workbench for DeepSeek Harness: publication figures, database connections, auto result review, SSH remote compute",
   "type": "module",
   "main": "lib/index.js",

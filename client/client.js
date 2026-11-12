@@ -101,7 +101,7 @@ function dependencyClosure(startId, tasks) {
 // client-src/index.jsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var inject = ["sidebarRightTabs", "slots", "resources"];
-var VERSION = "0.13.0";
+var VERSION = "0.14.0";
 var STATE_URL = "/plugins/dsh-science/state";
 var POLL_MS = 3e3;
 var teamRuntime = { hasRecordedParents: false };
@@ -173,6 +173,46 @@ var SCREENING_COLOR = {
   exclude: C.err,
   maybe: C.warn
 };
+var PAPER_STAGE_LABEL = {
+  explore: "\u63A2\u7D22",
+  frame: "\u6784\u67B6",
+  execute: "\u6267\u884C",
+  synthesize: "\u7EFC\u5408",
+  draft: "\u64B0\u5199",
+  audit: "\u5BA1\u8BA1\u51BB\u7ED3"
+};
+var PAPER_STAGE_ORDER = ["explore", "frame", "execute", "synthesize", "draft", "audit"];
+var DIRECTION_LABEL = {
+  not_assessed: "\u672A\u5224\u5B9A",
+  supports: "\u652F\u6301",
+  contradicts: "\u53CD\u9A73",
+  inconclusive: "\u4E0D\u786E\u5B9A",
+  not_applicable: "\u4E0D\u9002\u7528"
+};
+var DIRECTION_COLOR = {
+  not_assessed: C.faint,
+  supports: C.ok,
+  contradicts: C.err,
+  inconclusive: C.warn,
+  not_applicable: C.muted
+};
+var MANUSCRIPT_ROLE_LABEL = {
+  main: "\u6838\u5FC3\u7ED3\u679C",
+  validation: "\u9A8C\u8BC1",
+  control: "\u5BF9\u7167",
+  boundary: "\u8FB9\u754C",
+  supplement: "\u8865\u5145",
+  excluded: "\u6392\u9664"
+};
+var PRESENTATION_LABEL = {
+  undecided: "\u5F85\u5B9A",
+  figure: "\u56FE",
+  table: "\u8868",
+  prose: "\u6B63\u6587",
+  supplement: "\u8865\u5145\u6750\u6599",
+  omit: "\u4E0D\u5C55\u793A"
+};
+var READINESS_LABEL = { ready: "\u5C31\u7EEA", blocked: "\u53D7\u963B", excluded: "\u5DF2\u6392\u9664" };
 var FIGURE_AUDIT_LABEL = {
   "not-audited": "\u672A\u524D\u68C0",
   failed: "\u524D\u68C0\u5931\u8D25",
@@ -697,7 +737,7 @@ function PaperProgressOverview({ progress, selectedId, onSelect, allLabel = "\u5
 function tasksForResult(tasks, resultId) {
   if (!resultId) return tasks;
   const byId = new Map(tasks.map((t) => [t.id, t]));
-  const keep = new Set(tasks.filter((t) => t.resultId === resultId).map((t) => t.id));
+  const keep = new Set(tasks.filter((t) => t.resultId === resultId || Array.isArray(t.resultIds) && t.resultIds.includes(resultId)).map((t) => t.id));
   const queue = [...keep];
   while (queue.length > 0) {
     const t = byId.get(queue.shift());
@@ -736,7 +776,7 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
       "data-member-strip": "",
       style: { borderBottom: `1px solid ${C.divider}`, marginBottom: 8 },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 6, padding: "2px 0 8px" }, children: members.map((m) => {
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 6, padding: "2px 0 8px" }, children: members.map((m) => {
           const meta = roleMetaOf(m);
           const mascot = meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null;
           const live = memberLive && memberLive[m.name] || "offline";
@@ -1580,7 +1620,7 @@ function TaskBoard({ tasks, focusTaskId, onClearFocus }) {
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DepChip, { id: t.id }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto" }, children: t.subject || t.id }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: t.assignee || "\u5F85\u9886" }),
-              t.resultId && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResBadge, { id: t.resultId }),
+              [...new Set([...Array.isArray(t.resultIds) ? t.resultIds : [], t.resultId].filter(Boolean))].map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResBadge, { id }, id)),
               t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                 "span",
                 {
@@ -2022,13 +2062,16 @@ function CoreCard({ core }) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 28 }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 15, fontWeight: 700, color: C.fg, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis" }, children: c.title || "\uFF08\u672A\u547D\u540D\uFF09" }),
-      c.confirmed ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      c.confirmed ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
         "span",
         {
           "data-core-confirmed": "true",
           title: "\u6838\u5FC3\u5DF2\u786E\u8BA4\uFF08\u7528\u6237\u540C\u610F\u540E\u7684\u6587\u7AE0\u627F\u8BFA\uFF1B\u4FEE\u6539\u4F1A\u6253\u56DE\u5F85\u786E\u8BA4\uFF09",
           style: { fontSize: 10, color: C.ok, border: `1px solid ${C.ok}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px", flexShrink: 0 },
-          children: "\u{1F512} \u5DF2\u786E\u8BA4"
+          children: [
+            "\u{1F512} \u5DF2\u786E\u8BA4 r",
+            c.revision || 1
+          ]
         }
       ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "span",
@@ -2272,7 +2315,7 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
                 "span",
                 {
                   "data-ref-verified": ref.verified ? "true" : "false",
-                  title: `${ref.verified ? "\u2713 \u5DF2\u6838\u5BF9\uFF08Crossref\uFF09" : "\u26A0 \u672A\u6838\u5BF9"}${ref.doi ? ` \xB7 doi:${ref.doi}` : ""} \xB7 ${ref.title || ""}${ref.verifyError ? ` \xB7 ${ref.verifyError}` : ""}`,
+                  title: `${ref.verified ? "\u2713 \u5DF2\u6838\u5BF9\uFF08Crossref\uFF09" : "\u26A0 \u672A\u6838\u5BF9"}${ref.doi ? ` \xB7 doi:${ref.doi}` : ""} \xB7 ${ref.title || ""}${Array.isArray(ref.claimIds) && ref.claimIds.length ? ` \xB7 Claim: ${ref.claimIds.join("\u3001")}` : ""}${ref.relation ? ` \xB7 ${ref.relation}` : ""}${ref.sourceLocator ? ` \xB7 \u5B9A\u4F4D: ${ref.sourceLocator}` : ""}${ref.verifyError ? ` \xB7 ${ref.verifyError}` : ""}`,
                   style: {
                     display: "inline-block",
                     padding: "0 6px",
@@ -2290,7 +2333,8 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
                   children: [
                     ref.verified ? "\u2713" : "\u26A0",
                     " ",
-                    ref.title || (ref.doi ? `doi:${ref.doi}` : "\uFF08\u65E0\u6807\u9898\uFF09")
+                    ref.title || (ref.doi ? `doi:${ref.doi}` : "\uFF08\u65E0\u6807\u9898\uFF09"),
+                    Array.isArray(ref.claimIds) && ref.claimIds.length ? ` \u2192 ${ref.claimIds.length} Claim` : ""
                   ]
                 },
                 `${ref.doi || ref.title}:${i}`
@@ -2298,7 +2342,7 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
             ] }, usedAs)),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6DFB\u52A0\u6587\u732E\uFF1A" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=method` }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=method claim_ids=[<claim-id>]` }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=concept` }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=background` }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=evidence` }),
@@ -2343,7 +2387,7 @@ function resultTaskIdsOf(r, tasksById) {
   const ids = new Set(Array.isArray(r && r.tasks) ? r.tasks : []);
   if (r && r.id && tasksById) {
     for (const t of tasksById.values()) {
-      if (t && t.resultId === r.id) ids.add(t.id);
+      if (t && (t.resultId === r.id || Array.isArray(t.resultIds) && t.resultIds.includes(r.id))) ids.add(t.id);
     }
   }
   return ids;
@@ -2368,6 +2412,12 @@ function frameworkLayout(bp, tasksById, figById) {
     const taskIds = resultTaskIdsOf(r, tasksById);
     resNodes.push({ r, x, y: resY, taskCount: taskIds.size });
     const leaves = [];
+    for (const claim of Array.isArray(r.claims) ? r.claims.filter((c) => c && c.status !== "retired") : []) {
+      leaves.push({ kind: "claim", id: claim.id, title: claim.text, claim });
+    }
+    for (const evidence of Array.isArray(r.evidence) ? r.evidence : []) {
+      leaves.push({ kind: "evidence", id: evidence.id, title: evidence.allowedInterpretation || evidence.sourceLocator || evidence.id, evidence });
+    }
     for (const tid of taskIds) leaves.push({ kind: "task", id: tid });
     for (const fid of Array.isArray(r.figures) ? r.figures : []) leaves.push({ kind: "figure", id: fid });
     const shown = leaves.slice(0, FG_LEAF_CAP);
@@ -2382,7 +2432,7 @@ function frameworkLayout(bp, tasksById, figById) {
         leaf.status = t ? t.status : null;
         leaf.title = t && (t.subject || t.id) || leaf.id;
         leaf.assignee = t ? t.assignee : "";
-      } else {
+      } else if (leaf.kind === "figure") {
         const f = figById.get(leaf.id);
         leaf.title = f && f.title || leaf.id;
         leaf.fig = f || null;
@@ -2559,6 +2609,60 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
       r.confirmed !== true && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.warn }, children: "\u786E\u8BA4\u8BE5 result\uFF1A" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `/sci_blueprint_confirm ${r.id}` })
+      ] })
+    ] });
+  }
+  if (sel.kind === "claim" || sel.kind === "evidence") {
+    const owner = (bp.results || []).find((r) => sel.kind === "claim" ? (r.claims || []).some((item2) => item2 && item2.id === sel.id) : (r.evidence || []).some((item2) => item2 && item2.id === sel.id));
+    const item = owner && (sel.kind === "claim" ? (owner.claims || []).find((row) => row.id === sel.id) : (owner.evidence || []).find((row) => row.id === sel.id));
+    if (!item) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
+      sel.id,
+      " \u5DF2\u4E0D\u5B58\u5728\uFF08\u84DD\u56FE\u53EF\u80FD\u5DF2\u66F4\u65B0\uFF09\u3002"
+    ] });
+    if (sel.kind === "claim") {
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": item.id, style: { border: `1px solid ${C.accent}`, borderRadius: 8, padding: "7px 10px", background: C.chip, fontSize: 11, color: C.fg, lineHeight: 1.6 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.accent, fontFamily: "ui-monospace, monospace", fontSize: 10 }, children: [
+          item.id,
+          "@r",
+          item.revision || 1,
+          " \xB7 ",
+          owner.id
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 3, fontWeight: 650 }, children: item.text }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, color: C.muted }, children: [
+          "\u5173\u8054\u8BC1\u636E ",
+          (owner.evidence || []).filter((ev) => (ev.claimIds || []).includes(item.id)).length,
+          " \u6761"
+        ] })
+      ] });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": item.id, style: { border: `1px solid ${DIRECTION_COLOR[item.direction] || C.border}`, borderRadius: 8, padding: "7px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: DIRECTION_COLOR[item.direction] || C.fg, fontWeight: 700 }, children: [
+        item.id,
+        " \xB7 ",
+        DIRECTION_LABEL[item.direction] || item.direction,
+        " \xB7 ",
+        item.state
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u6765\u6E90\uFF1A" }),
+        item.sourceLocator || "\u672A\u8BB0\u5F55"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u5141\u8BB8\u89E3\u91CA\uFF1A" }),
+        item.allowedInterpretation || "\u672A\u8BB0\u5F55"
+      ] }),
+      item.prohibitedInterpretation && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.warn }, children: "\u4E0D\u5F97\u5916\u63A8\uFF1A" }),
+        item.prohibitedInterpretation
+      ] }),
+      item.conditions && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u6761\u4EF6\uFF1A" }),
+        item.conditions
+      ] }),
+      item.uncertainty && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u4E0D\u786E\u5B9A\u6027\uFF1A" }),
+        item.uncertainty
       ] })
     ] });
   }
@@ -2862,6 +2966,40 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
                 `task:${leaf.id}`
               );
             }
+            if (leaf.kind === "claim" || leaf.kind === "evidence") {
+              const isClaim = leaf.kind === "claim";
+              const direction = !isClaim && leaf.evidence ? leaf.evidence.direction : "not_assessed";
+              const color = isClaim ? C.accent : DIRECTION_COLOR[direction] || C.faint;
+              return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                "div",
+                {
+                  "data-framework-node": leaf.id,
+                  "data-leaf-kind": leaf.kind,
+                  onClick: () => setSel({ kind: leaf.kind, id: leaf.id }),
+                  title: `${isClaim ? "Claim" : "\u8BC1\u636E"} ${leaf.id} \xB7 ${leaf.title} \xB7 \u70B9\u51FB\u67E5\u770B`,
+                  style: {
+                    ...nodeBase,
+                    left: leaf.x,
+                    top: leaf.y,
+                    width: FG_LEAF_W,
+                    height: FG_LEAF_H,
+                    border: `1px solid ${isSel ? C.accent : color}`,
+                    borderRadius: 7,
+                    background: C.chip,
+                    padding: "2px 6px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    overflow: "hidden"
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color, flexShrink: 0 }, children: isClaim ? "C" : leaf.evidence && leaf.evidence.state === "verified" ? "E\u2713" : "E" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: leaf.title })
+                  ]
+                },
+                `${leaf.kind}:${leaf.id}`
+              );
+            }
             return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
               "div",
               {
@@ -2980,15 +3118,15 @@ function CoverageSection({ coverage, resultsCount }) {
     }
     if (supported === 0) {
       return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-        "\u65E0\u53EF\u652F\u6491\u7684 result\uFF08negative ",
+        "\u5C1A\u65E0 status=supported \u7684 Result\uFF08negative ",
         negative,
         " \xB7 dropped ",
         dropped,
-        " \u5DF2\u9000\u51FA\u652F\u6491\u94FE\uFF09\u2014\u2014\u6587\u7AE0\u5C1A\u65E0 supported \u8BC1\u636E\u3002"
+        "\uFF09\u3002\u9634\u6027\u7ED3\u679C\u4ECD\u4FDD\u7559\u5728\u8BC1\u636E\u94FE\u4E2D\uFF0C\u53EA\u6709\u660E\u786E excluded/dropped \u624D\u9000\u51FA\u6587\u7AE0\u3002"
       ] });
     }
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-      "\u8986\u76D6\u5B8C\u6574\uFF1A\u5728\u7814 result \u90FD\u6709\u4EFB\u52A1\u4E0E\u56FE\u8868\uFF0C\u4EFB\u52A1\u5168\u90E8\u5BF9\u9F50\u5230 result\uFF08supported ",
+      "\u8986\u76D6\u5B8C\u6574\uFF1A\u7EB3\u5165\u6587\u7AE0\u7684 Result \u5DF2\u6709\u6267\u884C\u5DE5\u4F5C\u548C\u5448\u73B0\u51B3\u7B56\uFF0C\u4EFB\u52A1\u5747\u5DF2\u5BF9\u9F50\uFF08supported ",
       supported,
       " \xB7 negative ",
       negative,
@@ -3067,8 +3205,209 @@ function ReviewCoverageSection({ rc }) {
     ] })
   ] });
 }
+function ReadinessPill({ row, label }) {
+  const state = row && row.state || "blocked";
+  const color = state === "ready" ? C.ok : state === "excluded" ? C.faint : C.warn;
+  const blockers = row && Array.isArray(row.blockers) ? row.blockers : [];
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    "span",
+    {
+      "data-readiness": state,
+      title: blockers.length ? blockers.join("\uFF1B") : `${label}\u5DF2\u5C31\u7EEA`,
+      style: { display: "inline-flex", alignItems: "center", gap: 3, border: `1px solid ${color}`, color, borderRadius: 9, padding: "1px 7px", fontSize: 10, lineHeight: "16px" },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: state === "ready" ? "\u2713" : state === "excluded" ? "\u2014" : "!" }),
+        label,
+        "\xB7",
+        READINESS_LABEL[state] || state
+      ]
+    }
+  );
+}
+function PaperStageRail({ stage }) {
+  const current = Math.max(0, PAPER_STAGE_ORDER.indexOf(stage));
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-paper-stage": stage || "explore", style: { display: "grid", gridTemplateColumns: "repeat(6, minmax(54px, 1fr))", gap: 3, marginTop: 8 }, children: PAPER_STAGE_ORDER.map((id, index) => {
+    const active = index === current;
+    const done = index < current;
+    const color = active ? C.accent : done ? C.ok : C.faint;
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { minWidth: 0, textAlign: "center" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: 4, borderRadius: 4, background: color, opacity: active ? 1 : done ? 0.8 : 0.35 } }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color, fontSize: 9, marginTop: 3, fontWeight: active ? 700 : 400, whiteSpace: "nowrap" }, children: PAPER_STAGE_LABEL[id] })
+    ] }, id);
+  }) });
+}
+function CockpitMetric({ label, value, total, color, hint }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { title: hint || "", style: { border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface, padding: "7px 8px", minWidth: 0 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 18, lineHeight: 1.25, color: color || C.fg, fontWeight: 750, marginTop: 2 }, children: [
+      value,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.faint, fontWeight: 400 }, children: [
+        "/",
+        total
+      ] })
+    ] })
+  ] });
+}
+function EvidenceResultCard({ row, source, selected, onSelect }) {
+  const directionColor = DIRECTION_COLOR[row.direction] || C.faint;
+  const counts = row.counts || {};
+  const claims = Array.isArray(row.claims) ? row.claims : [];
+  const evidence = Array.isArray(row.evidence) ? row.evidence : [];
+  const verified = evidence.filter((item) => item && item.state === "verified");
+  const readiness = row.readiness || {};
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    "details",
+    {
+      "data-evidence-result": row.id,
+      open: selected || void 0,
+      style: { border: `1px solid ${selected ? C.accent : C.border}`, borderLeft: `4px solid ${directionColor}`, borderRadius: 9, background: C.card, marginTop: 6, overflow: "hidden" },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "summary",
+          {
+            onClick: () => onSelect && onSelect(row.id),
+            style: { cursor: "pointer", listStyle: "none", padding: "8px 9px" },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5, minWidth: 0 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontFamily: "ui-monospace, monospace", color: C.accent, fontSize: 10, flexShrink: 0 }, children: row.id }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: row.title || row.claim || row.id }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { marginLeft: "auto", color: directionColor, fontSize: 10, flexShrink: 0 }, children: DIRECTION_LABEL[row.direction] || row.direction })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReadinessPill, { row: readiness.scientific, label: "\u79D1\u5B66" }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReadinessPill, { row: readiness.manuscript, label: "\u6587\u7A3F" }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReadinessPill, { row: readiness.submission, label: "\u6295\u7A3F" })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, fontSize: 10, color: C.muted, display: "flex", gap: 8, flexWrap: "wrap" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: MANUSCRIPT_ROLE_LABEL[row.manuscriptRole] || row.manuscriptRole }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                  "\u5448\u73B0\uFF1A",
+                  PRESENTATION_LABEL[row.presentation && row.presentation.mode] || "\u5F85\u5B9A"
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                  "Claim ",
+                  counts.claims || 0
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                  "\u8BC1\u636E ",
+                  counts.verifiedEvidence || 0,
+                  "/",
+                  counts.evidence || 0
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                  "\u4EFB\u52A1 ",
+                  counts.completedTasks || 0,
+                  "/",
+                  counts.tasks || 0
+                ] })
+              ] })
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { borderTop: `1px solid ${C.divider}`, padding: "7px 9px 9px" }, children: [
+          row.purpose && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.muted, lineHeight: 1.55 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u79D1\u5B66\u76EE\u7684\uFF1A" }),
+            row.purpose
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 5, fontSize: 10, color: C.fg, fontWeight: 650 }, children: "\u4E3B\u5F20\u4E0E\u8BC1\u636E" }),
+          claims.map((claim) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, fontSize: 11, lineHeight: 1.5, color: C.fg }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.accent, fontFamily: "ui-monospace, monospace", fontSize: 9 }, children: [
+              claim.id,
+              "@r",
+              claim.revision || 1
+            ] }),
+            " \xB7 ",
+            claim.text
+          ] }, claim.id)),
+          verified.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.warn, marginTop: 4 }, children: "\u5C1A\u65E0\u5DF2\u6838\u9A8C\u8BC1\u636E\u5305\u3002\u6765\u6E90\u5B9A\u4F4D\u4E0E\u89E3\u91CA\u8FB9\u754C\u7F3A\u5931\u65F6\uFF0C\u4E0D\u80FD\u628A\u4EFB\u52A1\u5B8C\u6210\u7B49\u540C\u4E8E\u79D1\u5B66\u7ED3\u8BBA\u6210\u7ACB\u3002" }) : verified.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { borderLeft: `2px solid ${DIRECTION_COLOR[item.direction] || C.ok}`, marginTop: 5, paddingLeft: 7, fontSize: 10, color: C.muted, lineHeight: 1.5 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.ok }, children: [
+                "\u2713 ",
+                item.id
+              ] }),
+              " \xB7 ",
+              item.sourceLocator
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u5141\u8BB8\u89E3\u91CA\uFF1A" }),
+              item.allowedInterpretation
+            ] }),
+            item.prohibitedInterpretation && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.warn }, children: "\u4E0D\u5F97\u5916\u63A8\uFF1A" }),
+              item.prohibitedInterpretation
+            ] })
+          ] }, item.id)),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 7, padding: "5px 7px", borderRadius: 6, background: C.surface, color: row.nextAction && row.nextAction.includes("\u5168\u90E8") ? C.ok : C.warn, fontSize: 10, lineHeight: 1.45 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "\u4E0B\u4E00\u6B65\uFF1A" }),
+            row.nextAction || "\u6838\u5BF9\u8BC1\u636E\u94FE"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }, children: [
+            !(source && source.confirmed) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `/sci_blueprint_confirm ${row.id}` }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_claim_add result_id=${row.id}` }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_evidence_add result_id=${row.id}` }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_update result_id=${row.id} presentation_mode=<figure|table|prose|supplement>` })
+          ] })
+        ] })
+      ]
+    }
+  );
+}
+function PaperCockpit({ bp, selectedId, onSelect }) {
+  const spine = bp.paperSpine || null;
+  if (!spine) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8BBA\u6587\u8BC1\u636E\u4E3B\u5E72\u5C1A\u672A\u751F\u6210\u3002\u5237\u65B0\u540E\u4ECD\u65E0\u6570\u636E\u65F6\uFF0C\u7528 sci_blueprint_overview \u68C0\u67E5\u84DD\u56FE\u8FC1\u79FB\u72B6\u6001\u3002" });
+  const counts = spine.counts || { total: 0, included: 0, scientificReady: 0, manuscriptReady: 0, submissionReady: 0 };
+  const rows = Array.isArray(spine.results) ? spine.results : [];
+  const byId = new Map((bp.results || []).map((row) => [row.id, row]));
+  const submission = spine.submission || {};
+  const submissionLabels = { dataCode: "\u6570\u636E\u4E0E\u4EE3\u7801", ethics: "\u4F26\u7406", reporting: "\u62A5\u544A\u89C4\u8303", limitations: "\u5C40\u9650\u6027" };
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-paper-cockpit": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 11px", background: `linear-gradient(135deg, ${C.card}, transparent)`, marginBottom: 8 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "flex-start", gap: 8 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 32 }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { minWidth: 0, flex: 1 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 9, color: C.accent, letterSpacing: 0.6 }, children: "DSH \u8BBA\u6587\u8BC1\u636E\u4E3B\u5E72 v2" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 14, fontWeight: 750, color: C.fg, marginTop: 2, lineHeight: 1.3 }, children: spine.core.title || "\u5C1A\u672A\u547D\u540D\u7684\u7814\u7A76\u6587\u7AE0" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 11, color: C.muted, marginTop: 3, lineHeight: 1.5 }, children: spine.core.claim || "\u5148\u5EFA\u7ACB\u6838\u5FC3\u4E3B\u5F20\uFF0C\u518D\u5C06\u5019\u9009\u8BC1\u636E\u63D0\u5347\u4E3A\u6587\u7AE0 Result\u3002" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: spine.core.confirmed ? C.ok : C.warn, border: `1px solid ${spine.core.confirmed ? C.ok : C.warn}`, borderRadius: 8, padding: "1px 6px", fontSize: 9, flexShrink: 0 }, children: spine.core.confirmed ? `\u{1F512} r${spine.core.revision || 1}` : "\u5F85\u786E\u8BA4" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperStageRail, { stage: spine.stage })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 5 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CockpitMetric, { label: "\u79D1\u5B66\u5C31\u7EEA", value: counts.scientificReady || 0, total: counts.included || 0, color: C.accent, hint: "\u8BC1\u636E\u53EF\u8FFD\u6EAF\u3001\u4EFB\u52A1\u7ED3\u675F\u4E14\u4E3B\u5F20\u5BA1\u67E5\u901A\u8FC7" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CockpitMetric, { label: "\u6587\u7A3F\u5C31\u7EEA", value: counts.manuscriptReady || 0, total: counts.included || 0, color: C.warn, hint: "\u5448\u73B0\u65B9\u5F0F\u5DF2\u51B3\u5B9A\uFF0C\u6240\u9700\u56FE\u4EF6\u4E0E\u5F15\u7528\u5DF2\u6838\u9A8C" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CockpitMetric, { label: "\u6295\u7A3F\u5C31\u7EEA", value: counts.submissionReady || 0, total: counts.included || 0, color: C.ok, hint: "\u6587\u7A3F\u53CA\u6295\u7A3F\u68C0\u67E5\u5168\u90E8\u5B8C\u6210" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 7, border: `1px solid ${C.accent}`, borderRadius: 8, padding: "7px 9px", background: C.surface, fontSize: 11, color: C.fg, lineHeight: 1.5 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.accent, fontWeight: 700 }, children: "\u5F53\u524D\u5173\u952E\u51B3\u7B56" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
+      spine.nextDecision
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 9, display: "flex", alignItems: "baseline", justifyContent: "space-between" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 11, color: C.fg }, children: "Result \u8BC1\u636E\u94FE" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.faint }, children: "\u652F\u6301\u3001\u53CD\u9A73\u548C\u4E0D\u786E\u5B9A\u8BC1\u636E\u90FD\u4FDD\u7559" })
+    ] }),
+    rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5C1A\u65E0 Result\u3002\u63A2\u7D22\u6240\u5F97\u5148\u8FDB\u5165\u5019\u9009\uFF0C\u518D\u7528 sci_result_add \u5EFA\u7ACB\u6587\u7AE0\u53D9\u4E8B\u5355\u5143\u3002" }) : rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EvidenceResultCard, { row, source: byId.get(row.id), selected: selectedId === row.id, onSelect }, row.id)),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 10, fontSize: 10, color: C.fg, fontWeight: 650 }, children: "\u6295\u7A3F\u68C0\u67E5" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 4, marginTop: 4 }, children: Object.entries(submissionLabels).map(([id, label]) => {
+      const row = submission[id] || { status: "pending" };
+      const done = row.status === "complete" || row.status === "not_applicable";
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { title: row.note || "", style: { border: `1px solid ${done ? C.ok : C.border}`, borderRadius: 7, padding: "5px 7px", color: done ? C.ok : C.muted, fontSize: 10 }, children: [
+        done ? "\u2713" : "\u25CB",
+        " ",
+        label,
+        " \xB7 ",
+        row.status === "not_applicable" ? "\u4E0D\u9002\u7528" : row.status === "complete" ? "\u5B8C\u6210" : "\u5F85\u5904\u7406"
+      ] }, id);
+    }) })
+  ] });
+}
+function PaperViewToggle({ view, onChange }) {
+  const rows = [["cockpit", "\u9A7E\u9A76\u8231"], ["graph", "\u5173\u7CFB\u56FE"], ["list", "\u8BE6\u7EC6\u5217\u8868"]];
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "inline-flex", gap: 3 }, children: rows.map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onChange(id), style: { padding: "1px 7px", borderRadius: 8, border: `1px solid ${view === id ? C.accent : C.border}`, background: view === id ? C.accent : "transparent", color: view === id ? "#fff" : C.muted, fontSize: 9, lineHeight: "16px", cursor: "pointer" }, children: label }, id)) });
+}
 function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
-  const [view, setView] = (0, import_react.useState)("graph");
+  const [view, setView] = (0, import_react.useState)("cockpit");
   const [focusResultId, setFocusResultId] = (0, import_react.useState)(null);
   const bp = data && data.blueprint || {};
   const core = bp.core || {};
@@ -3105,22 +3444,12 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperProgressOverview, { progress: bp.paperProgress, selectedId: focusResultId, onSelect: setFocusResultId, allLabel: "\u5168\u90E8 Result" }),
-    view === "graph" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    view !== "cockpit" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperProgressOverview, { progress: bp.paperProgress, selectedId: focusResultId, onSelect: setFocusResultId, allLabel: "\u5168\u90E8 Result" }),
+    view === "cockpit" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8BBA\u6587\u9A7E\u9A76\u8231", extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperViewToggle, { view, onChange: setView }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperCockpit, { bp, selectedId: focusResultId, onSelect: setFocusResultId }) }) : view === "graph" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       Panel,
       {
-        title: "\u6587\u7AE0\u6846\u67B6\u56FE",
-        extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          ViewToggle,
-          {
-            view,
-            graphValue: "graph",
-            listValue: "list",
-            graphLabel: "\u6846\u67B6\u56FE",
-            listLabel: "\u5217\u8868\u89C6\u56FE",
-            onChange: setView
-          }
-        ),
+        title: "Claim\u2014\u8BC1\u636E\u5173\u7CFB\u56FE",
+        extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperViewToggle, { view, onChange: setView }),
         children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
           FrameworkGraph,
           {
@@ -3139,17 +3468,7 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
         Panel,
         {
           title: "\u6838\u5FC3",
-          extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            ViewToggle,
-            {
-              view,
-              graphValue: "graph",
-              listValue: "list",
-              graphLabel: "\u6846\u67B6\u56FE",
-              listLabel: "\u5217\u8868\u89C6\u56FE",
-              onChange: setView
-            }
-          ),
+          extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperViewToggle, { view, onChange: setView }),
           children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoreCard, { core })
         }
       ),
@@ -3617,7 +3936,7 @@ var SafeBody = class extends import_react.default.Component {
   }
 };
 function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
-  const [tab, setTab] = (0, import_react.useState)("team");
+  const [tab, setTab] = (0, import_react.useState)("paper");
   const [focusTaskId, setFocusTaskId] = (0, import_react.useState)(null);
   const [focusFigureId, setFocusFigureId] = (0, import_react.useState)(null);
   const state = usePollState(POLL_MS);
@@ -3632,16 +3951,16 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { padding: 10, fontSize: 13 }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: "@keyframes dsh-sci-pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }@keyframes dsh-sci-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2.5px) } }@keyframes dsh-sci-nodeglow { 0%,100% { box-shadow: 0 0 0 0 rgba(27,110,194,0) } 50% { box-shadow: 0 0 6px 1px rgba(27,110,194,0.4) } }[data-task-row],[data-fig-card],[data-result-row],[data-review-row],[data-inbox-row],[data-member-tile],[data-dag-node],[data-dep-chip],[data-row-dep-chip],[data-fig-prev]{transition:background-color 120ms ease,border-color 120ms ease,opacity 120ms ease,color 120ms ease}[data-task-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important;border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-result-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important;border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-review-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important;border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-fig-card]:hover{border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-inbox-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important}[data-member-tile]:hover{background:var(--dsw-alias-button-ghost-active-fill, rgba(127,127,127,0.14))}[data-dag-node]{transition:border-color 140ms ease,background 140ms ease,box-shadow 220ms ease}[data-dag-node]:hover{border-color:var(--dsw-alias-state-business-primary, #1B6EC2)!important}[data-dep-chip]:hover,[data-row-dep-chip]:hover{border-color:var(--dsw-alias-state-business-primary, #1B6EC2)!important;color:var(--dsw-alias-state-business-primary, #1B6EC2)!important}" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 14 }, children: "\u{1F9EA} \u79D1\u7814\u5DE5\u4F5C\u53F0" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 14 }, children: "\u{1F9EC} \u8BBA\u6587\u8BC1\u636E\u5DE5\u4F5C\u53F0" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.muted }, children: [
         "v",
         VERSION
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", gap: 4, margin: "4px 0 2px" }, children: [
-      ["team", "\u56E2\u961F"],
-      ["paper", "\u6587\u7AE0\u6846\u67B6"],
-      ["artifacts", "\u4EA7\u7269"]
+      ["paper", "\u8BBA\u6587\u9A7E\u9A76\u8231"],
+      ["team", "\u56E2\u961F\u6267\u884C"],
+      ["artifacts", "\u56FE\u8868\u4E0E\u4EA7\u7269"]
     ].map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "button",
       {
@@ -3672,7 +3991,7 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
         refresh: state.refresh
       }
     ) : tab === "paper" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BlueprintTab, { data: state.data, onOpenTask: goTeam, onOpenFigure: goArtifacts }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArtifactsTab, { data: state.data, focusFigureId, onClearFocusFigure: () => setFocusFigureId(null) }) }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.muted, marginTop: 8, borderTop: `1px solid ${C.divider}`, paddingTop: 6 }, children: "\u6280\u80FD\u7531\u56E2\u961F\u6210\u5458\u81EA\u4E3B\u4F7F\u7528 \xB7 \u6570\u636E\u6BCF 3 \u79D2\u5237\u65B0" })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.muted, marginTop: 8, borderTop: `1px solid ${C.divider}`, paddingTop: 6 }, children: "\u4E3B\u5F20\u4E0E\u8BC1\u636E\u51B3\u5B9A\u6587\u7AE0\u8FB9\u754C \xB7 \u56E2\u961F\u6267\u884C\u72B6\u6001\u6BCF 3 \u79D2\u5237\u65B0" })
   ] });
 }
 function apply(ctx) {
@@ -3746,7 +4065,7 @@ function apply(ctx) {
                 id: "workbench",
                 order: 10,
                 title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
-                description: () => "\u4EFB\u52A1\u6D41 DAG\uFF08\u6210\u5458\u59FF\u6001/\u4F9D\u8D56\u8DF3\u8F6C/\u4EFB\u52A1\u56DE\u62A5\u53F0\u8D26\uFF09\xB7 \u6587\u7AE0\u6846\u67B6\uFF08\u786E\u8BA4/\u53C2\u8003\u6587\u732E/\u5FEB\u7B5B\uFF09\xB7 \u4EA7\u7269\uFF08\u56FE\u8868\u7248\u672C\u94FE/\u6587\u4EF6/\u8FDC\u7A0B/\u5BA1\u67E5\uFF09\uFF08dsh-science\uFF09"
+                description: () => "\u8BBA\u6587\u8BC1\u636E\u4E3B\u5E72\uFF08\u9636\u6BB5\u95F8\u95E8/Claim/\u8BC1\u636E\u5305/\u6295\u7A3F\u5C31\u7EEA\u5EA6\uFF09\xB7 \u56E2\u961F\u6267\u884C\uFF08\u6210\u5458\u59FF\u6001/\u5171\u4EAB\u4EFB\u52A1/DAG/\u56DE\u62A5\u53F0\u8D26\uFF09\xB7 \u56FE\u8868\u4E0E\u79D1\u7814\u4EA7\u7269\uFF08dsh-science\uFF09"
               }
             ]
           });

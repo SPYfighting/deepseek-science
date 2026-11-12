@@ -62,7 +62,7 @@ import { dependencyClosure, normalizeTaskBoard } from '../lib/dag.js'
 
 export const inject = ['sidebarRightTabs', 'slots', 'resources']
 
-const VERSION = '0.13.0'
+const VERSION = '0.14.0'
 const STATE_URL = '/plugins/dsh-science/state'
 const POLL_MS = 3000
 // 模块级运行时标记：成员是否记录了真实父会话（供 apply 层 memberOpenAvailable 判定）
@@ -152,6 +152,25 @@ const SCREENING_COLOR = {
   exclude: C.err,
   maybe: C.warn,
 }
+
+// DSH 论文证据主干 v2：工作阶段、证据方向与文章角色的中文显示口径。
+const PAPER_STAGE_LABEL = {
+  explore: '探索', frame: '构架', execute: '执行', synthesize: '综合', draft: '撰写', audit: '审计冻结',
+}
+const PAPER_STAGE_ORDER = ['explore', 'frame', 'execute', 'synthesize', 'draft', 'audit']
+const DIRECTION_LABEL = {
+  not_assessed: '未判定', supports: '支持', contradicts: '反驳', inconclusive: '不确定', not_applicable: '不适用',
+}
+const DIRECTION_COLOR = {
+  not_assessed: C.faint, supports: C.ok, contradicts: C.err, inconclusive: C.warn, not_applicable: C.muted,
+}
+const MANUSCRIPT_ROLE_LABEL = {
+  main: '核心结果', validation: '验证', control: '对照', boundary: '边界', supplement: '补充', excluded: '排除',
+}
+const PRESENTATION_LABEL = {
+  undecided: '待定', figure: '图', table: '表', prose: '正文', supplement: '补充材料', omit: '不展示',
+}
+const READINESS_LABEL = { ready: '就绪', blocked: '受阻', excluded: '已排除' }
 
 // 图件前检状态不是期刊接收结论：自动检查只验证可观察属性，最终仍需研究者人工终审。
 const FIGURE_AUDIT_LABEL = {
@@ -712,7 +731,7 @@ function PaperProgressOverview({ progress, selectedId, onSelect, allLabel = '全
 function tasksForResult(tasks, resultId) {
   if (!resultId) return tasks
   const byId = new Map(tasks.map((t) => [t.id, t]))
-  const keep = new Set(tasks.filter((t) => t.resultId === resultId).map((t) => t.id))
+  const keep = new Set(tasks.filter((t) => t.resultId === resultId || (Array.isArray(t.resultIds) && t.resultIds.includes(resultId))).map((t) => t.id))
   const queue = [...keep]
   while (queue.length > 0) {
     const t = byId.get(queue.shift())
@@ -758,7 +777,7 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
       data-member-strip=""
       style={{ borderBottom: `1px solid ${C.divider}`, marginBottom: 8 }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: 6, padding: '2px 0 8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 6, padding: '2px 0 8px' }}>
         {members.map((m) => {
           const meta = roleMetaOf(m)
           const mascot = meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null
@@ -1587,7 +1606,7 @@ function TaskBoard({ tasks, focusTaskId, onClearFocus }) {
                 {t.subject || t.id}
               </b>
               <span style={{ color: C.muted, fontSize: 11, flexShrink: 0 }}>{t.assignee || '待领'}</span>
-              {t.resultId && <ResBadge id={t.resultId} />}
+              {[...new Set([...(Array.isArray(t.resultIds) ? t.resultIds : []), t.resultId].filter(Boolean))].map((id) => <ResBadge key={id} id={id} />)}
               {t.result && (
                 <span
                   title={`回报摘要：${t.result}`}
@@ -2047,7 +2066,7 @@ function CoreCard({ core }) {
             title="核心已确认（用户同意后的文章承诺；修改会打回待确认）"
             style={{ fontSize: 10, color: C.ok, border: `1px solid ${C.ok}`, borderRadius: 8, padding: '0 6px', lineHeight: '16px', flexShrink: 0 }}
           >
-            🔒 已确认
+            🔒 已确认 r{c.revision || 1}
           </span>
         ) : (
           <span
@@ -2259,7 +2278,7 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
                   <span
                     key={`${ref.doi || ref.title}:${i}`}
                     data-ref-verified={ref.verified ? 'true' : 'false'}
-                    title={`${ref.verified ? '✓ 已核对（Crossref）' : '⚠ 未核对'}${ref.doi ? ` · doi:${ref.doi}` : ''} · ${ref.title || ''}${ref.verifyError ? ` · ${ref.verifyError}` : ''}`}
+                    title={`${ref.verified ? '✓ 已核对（Crossref）' : '⚠ 未核对'}${ref.doi ? ` · doi:${ref.doi}` : ''} · ${ref.title || ''}${Array.isArray(ref.claimIds) && ref.claimIds.length ? ` · Claim: ${ref.claimIds.join('、')}` : ''}${ref.relation ? ` · ${ref.relation}` : ''}${ref.sourceLocator ? ` · 定位: ${ref.sourceLocator}` : ''}${ref.verifyError ? ` · ${ref.verifyError}` : ''}`}
                     style={{
                       display: 'inline-block', padding: '0 6px', borderRadius: 8,
                       border: `1px solid ${ref.verified ? C.ok : C.warn}`,
@@ -2268,14 +2287,14 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
                       maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}
                   >
-                    {ref.verified ? '✓' : '⚠'} {ref.title || (ref.doi ? `doi:${ref.doi}` : '（无标题）')}
+                    {ref.verified ? '✓' : '⚠'} {ref.title || (ref.doi ? `doi:${ref.doi}` : '（无标题）')}{Array.isArray(ref.claimIds) && ref.claimIds.length ? ` → ${ref.claimIds.length} Claim` : ''}
                   </span>
                 ))}
               </div>
             ))}
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10, color: C.faint }}>添加文献：</span>
-              <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=method`} />
+              <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=method claim_ids=[<claim-id>]`} />
               <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=concept`} />
               <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=background`} />
               <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=evidence`} />
@@ -2331,7 +2350,7 @@ function resultTaskIdsOf(r, tasksById) {
   const ids = new Set(Array.isArray(r && r.tasks) ? r.tasks : [])
   if (r && r.id && tasksById) {
     for (const t of tasksById.values()) {
-      if (t && t.resultId === r.id) ids.add(t.id)
+      if (t && (t.resultId === r.id || (Array.isArray(t.resultIds) && t.resultIds.includes(r.id)))) ids.add(t.id)
     }
   }
   return ids
@@ -2360,6 +2379,12 @@ function frameworkLayout(bp, tasksById, figById) {
     const taskIds = resultTaskIdsOf(r, tasksById)
     resNodes.push({ r, x, y: resY, taskCount: taskIds.size })
     const leaves = []
+    for (const claim of Array.isArray(r.claims) ? r.claims.filter((c) => c && c.status !== 'retired') : []) {
+      leaves.push({ kind: 'claim', id: claim.id, title: claim.text, claim })
+    }
+    for (const evidence of Array.isArray(r.evidence) ? r.evidence : []) {
+      leaves.push({ kind: 'evidence', id: evidence.id, title: evidence.allowedInterpretation || evidence.sourceLocator || evidence.id, evidence })
+    }
     for (const tid of taskIds) leaves.push({ kind: 'task', id: tid })
     for (const fid of Array.isArray(r.figures) ? r.figures : []) leaves.push({ kind: 'figure', id: fid })
     const shown = leaves.slice(0, FG_LEAF_CAP)
@@ -2374,7 +2399,7 @@ function frameworkLayout(bp, tasksById, figById) {
         leaf.status = t ? t.status : null
         leaf.title = (t && (t.subject || t.id)) || leaf.id
         leaf.assignee = t ? t.assignee : ''
-      } else {
+      } else if (leaf.kind === 'figure') {
         const f = figById.get(leaf.id)
         leaf.title = (f && f.title) || leaf.id
         leaf.fig = f || null
@@ -2516,6 +2541,34 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
             <CmdChip cmd={`/sci_blueprint_confirm ${r.id}`} />
           </div>
         )}
+      </div>
+    )
+  }
+  if (sel.kind === 'claim' || sel.kind === 'evidence') {
+    const owner = (bp.results || []).find((r) => sel.kind === 'claim'
+      ? (r.claims || []).some((item) => item && item.id === sel.id)
+      : (r.evidence || []).some((item) => item && item.id === sel.id))
+    const item = owner && (sel.kind === 'claim'
+      ? (owner.claims || []).find((row) => row.id === sel.id)
+      : (owner.evidence || []).find((row) => row.id === sel.id))
+    if (!item) return <Empty>{sel.id} 已不存在（蓝图可能已更新）。</Empty>
+    if (sel.kind === 'claim') {
+      return (
+        <div data-framework-detail={item.id} style={{ border: `1px solid ${C.accent}`, borderRadius: 8, padding: '7px 10px', background: C.chip, fontSize: 11, color: C.fg, lineHeight: 1.6 }}>
+          <div style={{ color: C.accent, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>{item.id}@r{item.revision || 1} · {owner.id}</div>
+          <div style={{ marginTop: 3, fontWeight: 650 }}>{item.text}</div>
+          <div style={{ marginTop: 5, color: C.muted }}>关联证据 {(owner.evidence || []).filter((ev) => (ev.claimIds || []).includes(item.id)).length} 条</div>
+        </div>
+      )
+    }
+    return (
+      <div data-framework-detail={item.id} style={{ border: `1px solid ${DIRECTION_COLOR[item.direction] || C.border}`, borderRadius: 8, padding: '7px 10px', background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
+        <div style={{ color: DIRECTION_COLOR[item.direction] || C.fg, fontWeight: 700 }}>{item.id} · {DIRECTION_LABEL[item.direction] || item.direction} · {item.state}</div>
+        <div style={{ marginTop: 3 }}><b style={{ color: C.fg }}>来源：</b>{item.sourceLocator || '未记录'}</div>
+        <div><b style={{ color: C.fg }}>允许解释：</b>{item.allowedInterpretation || '未记录'}</div>
+        {item.prohibitedInterpretation && <div><b style={{ color: C.warn }}>不得外推：</b>{item.prohibitedInterpretation}</div>}
+        {item.conditions && <div><b style={{ color: C.fg }}>条件：</b>{item.conditions}</div>}
+        {item.uncertainty && <div><b style={{ color: C.fg }}>不确定性：</b>{item.uncertainty}</div>}
       </div>
     )
   }
@@ -2731,6 +2784,30 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
                 </div>
               )
             }
+            if (leaf.kind === 'claim' || leaf.kind === 'evidence') {
+              const isClaim = leaf.kind === 'claim'
+              const direction = !isClaim && leaf.evidence ? leaf.evidence.direction : 'not_assessed'
+              const color = isClaim ? C.accent : (DIRECTION_COLOR[direction] || C.faint)
+              return (
+                <div
+                  key={`${leaf.kind}:${leaf.id}`}
+                  data-framework-node={leaf.id}
+                  data-leaf-kind={leaf.kind}
+                  onClick={() => setSel({ kind: leaf.kind, id: leaf.id })}
+                  title={`${isClaim ? 'Claim' : '证据'} ${leaf.id} · ${leaf.title} · 点击查看`}
+                  style={{
+                    ...nodeBase,
+                    left: leaf.x, top: leaf.y, width: FG_LEAF_W, height: FG_LEAF_H,
+                    border: `1px solid ${isSel ? C.accent : color}`,
+                    borderRadius: 7, background: C.chip, padding: '2px 6px',
+                    display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden',
+                  }}
+                >
+                  <span style={{ fontSize: 9, color, flexShrink: 0 }}>{isClaim ? 'C' : leaf.evidence && leaf.evidence.state === 'verified' ? 'E✓' : 'E'}</span>
+                  <span style={{ fontSize: 10, color: C.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{leaf.title}</span>
+                </div>
+              )
+            }
             return (
               <div
                 key={`fig:${leaf.id}`}
@@ -2816,9 +2893,9 @@ function CoverageSection({ coverage, resultsCount }) {
       return <Empty>尚无 result——先 sci_result_add 添加 Results，覆盖检查才有对象。</Empty>
     }
     if (supported === 0) {
-      return <Empty>无可支撑的 result（negative {negative} · dropped {dropped} 已退出支撑链）——文章尚无 supported 证据。</Empty>
+      return <Empty>尚无 status=supported 的 Result（negative {negative} · dropped {dropped}）。阴性结果仍保留在证据链中，只有明确 excluded/dropped 才退出文章。</Empty>
     }
-    return <Empty>覆盖完整：在研 result 都有任务与图表，任务全部对齐到 result（supported {supported} · negative {negative}）。</Empty>
+    return <Empty>覆盖完整：纳入文章的 Result 已有执行工作和呈现决策，任务均已对齐（supported {supported} · negative {negative}）。</Empty>
   }
   return (
     <div style={{ border: `1px solid ${cov.falsificationRisk ? C.err : C.border}`, borderRadius: 8, padding: '6px 10px', background: C.card }}>
@@ -2879,8 +2956,180 @@ function ReviewCoverageSection({ rc }) {
   )
 }
 
+function ReadinessPill({ row, label }) {
+  const state = (row && row.state) || 'blocked'
+  const color = state === 'ready' ? C.ok : state === 'excluded' ? C.faint : C.warn
+  const blockers = row && Array.isArray(row.blockers) ? row.blockers : []
+  return (
+    <span
+      data-readiness={state}
+      title={blockers.length ? blockers.join('；') : `${label}已就绪`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, border: `1px solid ${color}`, color, borderRadius: 9, padding: '1px 7px', fontSize: 10, lineHeight: '16px' }}
+    >
+      <span>{state === 'ready' ? '✓' : state === 'excluded' ? '—' : '!'}</span>
+      {label}·{READINESS_LABEL[state] || state}
+    </span>
+  )
+}
+
+function PaperStageRail({ stage }) {
+  const current = Math.max(0, PAPER_STAGE_ORDER.indexOf(stage))
+  return (
+    <div data-paper-stage={stage || 'explore'} style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(54px, 1fr))', gap: 3, marginTop: 8 }}>
+      {PAPER_STAGE_ORDER.map((id, index) => {
+        const active = index === current
+        const done = index < current
+        const color = active ? C.accent : done ? C.ok : C.faint
+        return (
+          <div key={id} style={{ minWidth: 0, textAlign: 'center' }}>
+            <div style={{ height: 4, borderRadius: 4, background: color, opacity: active ? 1 : done ? 0.8 : 0.35 }} />
+            <div style={{ color, fontSize: 9, marginTop: 3, fontWeight: active ? 700 : 400, whiteSpace: 'nowrap' }}>{PAPER_STAGE_LABEL[id]}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function CockpitMetric({ label, value, total, color, hint }) {
+  return (
+    <div title={hint || ''} style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface, padding: '7px 8px', minWidth: 0 }}>
+      <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: 18, lineHeight: 1.25, color: color || C.fg, fontWeight: 750, marginTop: 2 }}>
+        {value}<span style={{ fontSize: 10, color: C.faint, fontWeight: 400 }}>/{total}</span>
+      </div>
+    </div>
+  )
+}
+
+function EvidenceResultCard({ row, source, selected, onSelect }) {
+  const directionColor = DIRECTION_COLOR[row.direction] || C.faint
+  const counts = row.counts || {}
+  const claims = Array.isArray(row.claims) ? row.claims : []
+  const evidence = Array.isArray(row.evidence) ? row.evidence : []
+  const verified = evidence.filter((item) => item && item.state === 'verified')
+  const readiness = row.readiness || {}
+  return (
+    <details
+      data-evidence-result={row.id}
+      open={selected || undefined}
+      style={{ border: `1px solid ${selected ? C.accent : C.border}`, borderLeft: `4px solid ${directionColor}`, borderRadius: 9, background: C.card, marginTop: 6, overflow: 'hidden' }}
+    >
+      <summary
+        onClick={() => onSelect && onSelect(row.id)}
+        style={{ cursor: 'pointer', listStyle: 'none', padding: '8px 9px' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+          <span style={{ fontFamily: 'ui-monospace, monospace', color: C.accent, fontSize: 10, flexShrink: 0 }}>{row.id}</span>
+          <b style={{ color: C.fg, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title || row.claim || row.id}</b>
+          <span style={{ marginLeft: 'auto', color: directionColor, fontSize: 10, flexShrink: 0 }}>{DIRECTION_LABEL[row.direction] || row.direction}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+          <ReadinessPill row={readiness.scientific} label="科学" />
+          <ReadinessPill row={readiness.manuscript} label="文稿" />
+          <ReadinessPill row={readiness.submission} label="投稿" />
+        </div>
+        <div style={{ marginTop: 5, fontSize: 10, color: C.muted, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span>{MANUSCRIPT_ROLE_LABEL[row.manuscriptRole] || row.manuscriptRole}</span>
+          <span>呈现：{PRESENTATION_LABEL[row.presentation && row.presentation.mode] || '待定'}</span>
+          <span>Claim {counts.claims || 0}</span>
+          <span>证据 {counts.verifiedEvidence || 0}/{counts.evidence || 0}</span>
+          <span>任务 {counts.completedTasks || 0}/{counts.tasks || 0}</span>
+        </div>
+      </summary>
+      <div style={{ borderTop: `1px solid ${C.divider}`, padding: '7px 9px 9px' }}>
+        {row.purpose && <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55 }}><b style={{ color: C.fg }}>科学目的：</b>{row.purpose}</div>}
+        <div style={{ marginTop: 5, fontSize: 10, color: C.fg, fontWeight: 650 }}>主张与证据</div>
+        {claims.map((claim) => (
+          <div key={claim.id} style={{ marginTop: 3, fontSize: 11, lineHeight: 1.5, color: C.fg }}>
+            <span style={{ color: C.accent, fontFamily: 'ui-monospace, monospace', fontSize: 9 }}>{claim.id}@r{claim.revision || 1}</span> · {claim.text}
+          </div>
+        ))}
+        {verified.length === 0 ? (
+          <div style={{ fontSize: 10, color: C.warn, marginTop: 4 }}>尚无已核验证据包。来源定位与解释边界缺失时，不能把任务完成等同于科学结论成立。</div>
+        ) : verified.map((item) => (
+          <div key={item.id} style={{ borderLeft: `2px solid ${DIRECTION_COLOR[item.direction] || C.ok}`, marginTop: 5, paddingLeft: 7, fontSize: 10, color: C.muted, lineHeight: 1.5 }}>
+            <div><span style={{ color: C.ok }}>✓ {item.id}</span> · {item.sourceLocator}</div>
+            <div><b style={{ color: C.fg }}>允许解释：</b>{item.allowedInterpretation}</div>
+            {item.prohibitedInterpretation && <div><b style={{ color: C.warn }}>不得外推：</b>{item.prohibitedInterpretation}</div>}
+          </div>
+        ))}
+        <div style={{ marginTop: 7, padding: '5px 7px', borderRadius: 6, background: C.surface, color: row.nextAction && row.nextAction.includes('全部') ? C.ok : C.warn, fontSize: 10, lineHeight: 1.45 }}>
+          <b>下一步：</b>{row.nextAction || '核对证据链'}
+        </div>
+        <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {!(source && source.confirmed) && <CmdChip cmd={`/sci_blueprint_confirm ${row.id}`} />}
+          <CmdChip cmd={`sci_claim_add result_id=${row.id}`} />
+          <CmdChip cmd={`sci_evidence_add result_id=${row.id}`} />
+          <CmdChip cmd={`sci_result_update result_id=${row.id} presentation_mode=<figure|table|prose|supplement>`} />
+        </div>
+      </div>
+    </details>
+  )
+}
+
+function PaperCockpit({ bp, selectedId, onSelect }) {
+  const spine = bp.paperSpine || null
+  if (!spine) return <Empty>论文证据主干尚未生成。刷新后仍无数据时，用 sci_blueprint_overview 检查蓝图迁移状态。</Empty>
+  const counts = spine.counts || { total: 0, included: 0, scientificReady: 0, manuscriptReady: 0, submissionReady: 0 }
+  const rows = Array.isArray(spine.results) ? spine.results : []
+  const byId = new Map((bp.results || []).map((row) => [row.id, row]))
+  const submission = spine.submission || {}
+  const submissionLabels = { dataCode: '数据与代码', ethics: '伦理', reporting: '报告规范', limitations: '局限性' }
+  return (
+    <div data-paper-cockpit="true">
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 11px', background: `linear-gradient(135deg, ${C.card}, transparent)`, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <MascotAvatar file={LEAD_MASCOT} emoji="🧑‍🔬" size={32} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 9, color: C.accent, letterSpacing: 0.6 }}>DSH 论文证据主干 v2</div>
+            <div style={{ fontSize: 14, fontWeight: 750, color: C.fg, marginTop: 2, lineHeight: 1.3 }}>{spine.core.title || '尚未命名的研究文章'}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>{spine.core.claim || '先建立核心主张，再将候选证据提升为文章 Result。'}</div>
+          </div>
+          <span style={{ color: spine.core.confirmed ? C.ok : C.warn, border: `1px solid ${spine.core.confirmed ? C.ok : C.warn}`, borderRadius: 8, padding: '1px 6px', fontSize: 9, flexShrink: 0 }}>
+            {spine.core.confirmed ? `🔒 r${spine.core.revision || 1}` : '待确认'}
+          </span>
+        </div>
+        <PaperStageRail stage={spine.stage} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 5 }}>
+        <CockpitMetric label="科学就绪" value={counts.scientificReady || 0} total={counts.included || 0} color={C.accent} hint="证据可追溯、任务结束且主张审查通过" />
+        <CockpitMetric label="文稿就绪" value={counts.manuscriptReady || 0} total={counts.included || 0} color={C.warn} hint="呈现方式已决定，所需图件与引用已核验" />
+        <CockpitMetric label="投稿就绪" value={counts.submissionReady || 0} total={counts.included || 0} color={C.ok} hint="文稿及投稿检查全部完成" />
+      </div>
+      <div style={{ marginTop: 7, border: `1px solid ${C.accent}`, borderRadius: 8, padding: '7px 9px', background: C.surface, fontSize: 11, color: C.fg, lineHeight: 1.5 }}>
+        <span style={{ color: C.accent, fontWeight: 700 }}>当前关键决策</span><br />{spine.nextDecision}
+      </div>
+      <div style={{ marginTop: 9, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <b style={{ fontSize: 11, color: C.fg }}>Result 证据链</b>
+        <span style={{ fontSize: 9, color: C.faint }}>支持、反驳和不确定证据都保留</span>
+      </div>
+      {rows.length === 0 ? <Empty>尚无 Result。探索所得先进入候选，再用 sci_result_add 建立文章叙事单元。</Empty> : rows.map((row) => (
+        <EvidenceResultCard key={row.id} row={row} source={byId.get(row.id)} selected={selectedId === row.id} onSelect={onSelect} />
+      ))}
+      <div style={{ marginTop: 10, fontSize: 10, color: C.fg, fontWeight: 650 }}>投稿检查</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 4, marginTop: 4 }}>
+        {Object.entries(submissionLabels).map(([id, label]) => {
+          const row = submission[id] || { status: 'pending' }
+          const done = row.status === 'complete' || row.status === 'not_applicable'
+          return <div key={id} title={row.note || ''} style={{ border: `1px solid ${done ? C.ok : C.border}`, borderRadius: 7, padding: '5px 7px', color: done ? C.ok : C.muted, fontSize: 10 }}>{done ? '✓' : '○'} {label} · {row.status === 'not_applicable' ? '不适用' : row.status === 'complete' ? '完成' : '待处理'}</div>
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PaperViewToggle({ view, onChange }) {
+  const rows = [['cockpit', '驾驶舱'], ['graph', '关系图'], ['list', '详细列表']]
+  return (
+    <span style={{ display: 'inline-flex', gap: 3 }}>
+      {rows.map(([id, label]) => <button key={id} type="button" onClick={() => onChange(id)} style={{ padding: '1px 7px', borderRadius: 8, border: `1px solid ${view === id ? C.accent : C.border}`, background: view === id ? C.accent : 'transparent', color: view === id ? '#fff' : C.muted, fontSize: 9, lineHeight: '16px', cursor: 'pointer' }}>{label}</button>)}
+    </span>
+  )
+}
+
 function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
-  const [view, setView] = useState('graph')
+  const [view, setView] = useState('cockpit')
   const [focusResultId, setFocusResultId] = useState(null)
   const bp = (data && data.blueprint) || {}
   const core = bp.core || {}
@@ -2916,20 +3165,15 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
           <div style={{ marginTop: 5 }}><CmdChip cmd="sci_blueprint_set" /></div>
         </div>
       )}
-      <PaperProgressOverview progress={bp.paperProgress} selectedId={focusResultId} onSelect={setFocusResultId} allLabel="全部 Result" />
-      {view === 'graph' ? (
+      {view !== 'cockpit' && <PaperProgressOverview progress={bp.paperProgress} selectedId={focusResultId} onSelect={setFocusResultId} allLabel="全部 Result" />}
+      {view === 'cockpit' ? (
+        <Panel title="论文驾驶舱" extra={<PaperViewToggle view={view} onChange={setView} />}>
+          <PaperCockpit bp={bp} selectedId={focusResultId} onSelect={setFocusResultId} />
+        </Panel>
+      ) : view === 'graph' ? (
         <Panel
-          title="文章框架图"
-          extra={(
-            <ViewToggle
-              view={view}
-              graphValue="graph"
-              listValue="list"
-              graphLabel="框架图"
-              listLabel="列表视图"
-              onChange={setView}
-            />
-          )}
+          title="Claim—证据关系图"
+          extra={<PaperViewToggle view={view} onChange={setView} />}
         >
           <FrameworkGraph
             bp={bp}
@@ -2945,16 +3189,7 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
         <>
           <Panel
             title="核心"
-            extra={(
-              <ViewToggle
-                view={view}
-                graphValue="graph"
-                listValue="list"
-                graphLabel="框架图"
-                listLabel="列表视图"
-                onChange={setView}
-              />
-            )}
+            extra={<PaperViewToggle view={view} onChange={setView} />}
           >
             <CoreCard core={core} />
           </Panel>
@@ -3409,8 +3644,8 @@ class SafeBody extends React.Component {
 }
 
 function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
-  // 默认停留在「团队」（v0.7.0 保持；「文章框架」是第二标签，按需点击查看蓝图框架图）
-  const [tab, setTab] = useState('team')
+  // 论文证据主干 v2：默认进入论文驾驶舱；团队页作为执行层按需展开。
+  const [tab, setTab] = useState('paper')
   // fix3/fix6：跨标签聚焦 id（文章框架 tab 任务/图表 chip → 目标面板展开+滚动后自行清除）
   const [focusTaskId, setFocusTaskId] = useState(null)
   const [focusFigureId, setFocusFigureId] = useState(null)
@@ -3441,14 +3676,14 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
         + '[data-dag-node]:hover{border-color:var(--dsw-alias-state-business-primary, #1B6EC2)!important}'
         + '[data-dep-chip]:hover,[data-row-dep-chip]:hover{border-color:var(--dsw-alias-state-business-primary, #1B6EC2)!important;color:var(--dsw-alias-state-business-primary, #1B6EC2)!important}'}</style>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <b style={{ fontSize: 14 }}>🧪 科研工作台</b>
+        <b style={{ fontSize: 14 }}>🧬 论文证据工作台</b>
         <span style={{ fontSize: 10, color: C.muted }}>v{VERSION}</span>
       </div>
       <div style={{ display: 'flex', gap: 4, margin: '4px 0 2px' }}>
         {[
-          ['team', '团队'],
-          ['paper', '文章框架'],
-          ['artifacts', '产物'],
+          ['paper', '论文驾驶舱'],
+          ['team', '团队执行'],
+          ['artifacts', '图表与产物'],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -3490,7 +3725,7 @@ function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
         </DataGate>
       </SafeBody>
       <div style={{ fontSize: 10, color: C.muted, marginTop: 8, borderTop: `1px solid ${C.divider}`, paddingTop: 6 }}>
-        技能由团队成员自主使用 · 数据每 3 秒刷新
+        主张与证据决定文章边界 · 团队执行状态每 3 秒刷新
       </div>
     </div>
   )
@@ -3591,7 +3826,7 @@ export function apply(ctx) {
                 id: 'workbench',
                 order: 10,
                 title: () => '科研工作台',
-                description: () => '任务流 DAG（成员姿态/依赖跳转/任务回报台账）· 文章框架（确认/参考文献/快筛）· 产物（图表版本链/文件/远程/审查）（dsh-science）',
+                description: () => '论文证据主干（阶段闸门/Claim/证据包/投稿就绪度）· 团队执行（成员姿态/共享任务/DAG/回报台账）· 图表与科研产物（dsh-science）',
               },
             ],
           })
