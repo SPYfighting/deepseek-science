@@ -780,4 +780,10 @@ finding，并贯通 /state、overview、export、工作台 UI（规格见 SPEC �
 - UI：成员头像带升级为自适应三列左右的小队卡，展示角色、在线状态、当前任务和在办数；团队任务流可按 Result 筛选。文章框架节点显示任务/文献/图件计数与完成条，详情显示下一步。产物页增加图件计划、前检状态、逐项修复建议和 PDF/TIFF 文件入口；技能库增加 SFL 独立可选插件卡。
 - 绘图技能：Python helper 增加毫米→英寸、明确最终尺寸、`svg.fonttype='none'` 和 PDF/SVG/PNG 默认导出；技能/角色/期刊参考统一到 plan→register→audit→manual review，明确自动通过不代表期刊接收。
 - 构建：把 `esbuild@0.25.0` 固定为 devDependency，移除 Windows 不兼容的 `/dev/null` 构建探测；客户端 bundle 重建为 v0.13.0。
-- 验证：`npm test` 235 tests / 233 pass / 0 fail / 2 skip；新增图件登记后被改写的回归测试，并用移除保护逻辑后的失败结果确认测试敏感性。`npm run build:client`、bundle syntax、host ESM import 通过。Matplotlib 实际生成 PDF/SVG/PNG（20,954/7,733/47,847 B）并清理临时文件。`npm pack --dry-run --json` 为 78 files、约 0.48 MB 压缩、1.89 MB 解包。当前机器无 DSH app/CLI，未做真实宿主截图或 profile 同步；该边界已写入 HANDOFF。
+- 验证：`npm test` 235 tests / 233 pass / 0 fail / 2 skip；新增图件登记后被改写的回归测试，并用移除保护逻辑后的失败结果确认测试敏感性。`npm run build:client`、bundle syntax、host ESM import 通过。Matplotlib 实际生成 PDF/SVG/PNG（20,954/7,733/47,847 B）并清理临时文件。`npm pack --dry-run --json` 为 78 files、约 0.48 MB 压缩、1.89 MB 解包。当前机器无 DSH app/CLI，未做真实宿主截图或 profile 同步；该边界记录于本条开发日志。
+
+## 2026-11-12：公开文档与发布包边界修正
+
+- README 改为统一中文说明；英文只保留产品名、命令、接口名和必要技术标识符。
+- `HANDOFF.md` 是本地跨会话协作记录，不是插件运行或用户文档的一部分；从 Git 跟踪、README 文档入口和 npm 发布清单中移除，并加入 `.gitignore`。
+- 验证：`npm test` 235 tests / 233 pass / 0 fail / 2 skip；`npm pack --dry-run --json` 为 77 files，清单中不再包含 `HANDOFF.md`。本地文件仍然存在，并由 `.gitignore` 忽略。

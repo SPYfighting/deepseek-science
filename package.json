@@ -13,8 +13,7 @@
     "assets",
     "cordis.patch.yml",
     "icon.svg",
-    "docs",
-    "HANDOFF.md"
+    "docs"
   ],
   "exports": {
     ".": "./lib/index.js",
