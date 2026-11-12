@@ -1,6 +1,6 @@
 # dsh-science 功能规格说明书
 
-版本：v0.1（P1 产出） · 日期：2026-11-07 · 目标 DSH：`>=0.2.0 <0.3.0`（当前 0.2.2-rc.1）
+版本：v0.13.0 · 更新日期：2026-11-12 · 目标 DSH：`>=0.2.0 <0.3.0`（当前 0.2.2-rc.1）
 
 对标基准：Anthropic Claude Science v0.1.47（本机逆向侦察 + 官方文档）；参考实现：aipoch/open-science（Apache-2.0）、OpenAI4S（MIT）、synthetic-sciences/openscience（Apache-2.0）、ai4s-research/open-science（MIT）。
 
@@ -83,7 +83,9 @@ dsh-science（单 npm bundle）
 
 | 工具 | 行为 |
 |---|---|
-| `sci_figure_register` | 模型生成图后调用：登记 `{path, title, code_path?, dpi, size, palette_check}` → 供工作台图库与 reviewer 图文核对；返回 figure id |
+| `sci_figure_plan` | 绘图前声明 title/result/claim/target journal/最终宽度/统计说明/源数据路径/模板来源、版本与许可；返回 plan id |
+| `sci_figure_register` | 绑定 `plan_id` 登记 PNG/JPEG/SVG/GIF/WebP/TIFF/PDF，校验扩展名与 magic bytes，静态 SVG 拦截可执行内容；记录代码、源数据、sha 与版本链 |
+| `sci_figure_audit` | 自动检查格式、最终尺寸、有效 dpi/矢量容器、代码/源数据、统计说明、模板许可；人工终审需显式 decision 与依据，且自动 fail/warn 未清除时不能批准 |
 | `sci_figure_list` | 当前会话图库清单（路径+元数据） |
 
 ---
@@ -119,7 +121,7 @@ skills 经 `ctx.skills.registerProvider` 注册，随包内 `SKILL.md` 分发（
 
 | Skill | 内容要点（原创撰写） |
 |---|---|
-| `sci-figures` | matplotlib/seaborn 出版级规范：300dpi、字号/线宽阈值、色板（colorblind-safe：Okabe-Ito/viridis）、PDF/SVG+PNG 双导出、坐标轴/图例清单、自检步骤（生成后 run `sci_figure_register`） |
+| `sci-figures` | `plan → generate → register → audit → manual review` 工作流；最终物理尺寸/有效 dpi、可编辑文字、色盲安全色板、PDF/SVG+PNG 导出、源数据与模板许可追溯 |
 | `sci-figures-r` | ggplot2 同上（theme_classic 基线、ggsave 双格式） |
 | `sci-db-analysis` | 数据库分析工作流：先 `sci_db_tables` 摸 schema → 只读查询 → 大结果落盘而非塞上下文 → `sci_db_execute` 前必须征得用户同意 |
 | `sci-remote-jobs` | 远程作业工作流：probe → 写脚本 → `sci_job_submit` → 轮询 status → harvest；长任务用 nohup 模式；禁止交互式命令 |
@@ -140,9 +142,9 @@ skills 经 `ctx.skills.registerProvider` 注册，随包内 `SKILL.md` 分发（
 ## 6. 工作台 UI 规范（client 侧）
 
 - 右栏标签页：`ctx.sidebarRightTabs.register({ id: 'dsh-science/workbench', kind: 'workbench', title: '科研工作台' })` + `ctx.slots.inject('sidebar.right.pane.tab', ...)`。三个子面板（tab 内部切页，不占额外 slot）：
-  1. **连接**：DB profiles（状态灯、测试按钮）、SSH hosts（probe 摘要、作业列表）——经 `ctx.remote`（Typert Remote namespace，host/client 共享服务）读写 host 侧状态，不依赖 webServer。
-  2. **图库**：本会话 `sci_figure_register` 登记的图，缩略网格 + 点击放大 + 版本。
-  3. **审查**：ReviewRun 历史 + findings 列表（severity 过滤）。
+  1. **团队**：成员状态卡、当前任务、Result 筛选、任务 DAG/列表、依赖聚焦和队长收件箱。
+  2. **文章框架**：核心→Results→任务/图件；每个 Result 显示确认、任务、文献核对、图件终审、主张审查与下一步。
+  3. **产物**：图件计划、登记图件及前检明细、文件树、SSH 作业和审查历史。
 - 头部按钮：`conversation.session.header.actions` 注册 `审查` 按钮（useSession 判断 idle 才可点）→ 等效 `/sci-review`。
 - 输入区：`conversation.input.activity` 注册"审查此轮"快捷动作。
 - 资源协议（每个协议唯一 provider，注册于主插件 client 模块）：`sci-figure`（图查看卡片）、`sci-review`（审查报告卡片）、`sci-job`（作业状态卡片）。会话中模型产出经 host 侧登记后以这些地址内嵌渲染。
@@ -241,7 +243,7 @@ DOCTYPE ENTITY；字符引用解码（含省略分号的 `&#106` 形式）、XML
 ## 14. 角色级 skill 菜单（v0.10.0；v0.11.0 增强）
 
 - 存储：`$DSH_HOME/dsh-science/role-skills/<role>/<name>/`（`git clone --depth 1`，`execFile` 无 shell）。
-  URL 白名单：https github.com / gitlab.com（含子域）与自建 `gitlab.<域名>`，仅 owner/repo 两段，禁本地路径/ssh/`..`；`gitlab.com.<其他域>` 这类仿冒域名拒绝。跨角色隔离 = 每角色独立目录 +
+  URL 白名单：https github.com / gitlab.com（含子域）与自建 `gitlab.<域名>`，仅 owner/repo 两段，禁本地路径/ssh/`..`；`gitlab.com.<其他域>` 这类仿冒域名拒绝。角色索引隔离 = 每角色独立目录 +
   只有对应角色的 spawn 提示词携带该目录 INDEX.md 索引；不进 DSH 全局技能注册表。
 - 安装/删除走模块级互斥队列防并发 clone；克隆到同分区 staging 再拷贝 subdir（不 rename 源目录），
   失败时清理 staging 与半成品安装目录；`repo_id` 与 `repo_url` 只能二选一，同时提供直接报错。
@@ -347,3 +349,11 @@ DOCTYPE ENTITY；字符引用解码（含省略分号的 `&#106` 形式）、XML
 - 远程工具前置校验：`requireProfile` 统一用于 probe/exec/job_submit/job_status/job_logs/job_harvest/file_push/file_fetch；profile 缺失时报 `SSH profile "<name>" 不存在...`，不再因 `getClient(undefined)` 抛 TypeError。job_logs/harvest 校验作业记录所属的 `meta.profile`。
 - 文档一致性：agents/skills/recipes 不得引用未注册工具；`sci_lit_search` / `sci_protein_get` / `sci_chem_lookup` 在 SPEC §2.2 标为「规划」，现版本以宿主 `web_search` / `web_fetch` + `sci_doi_verify` 完成检索与核对。SPEC §2.1 移除不存在的 `sci_db_profile_close` 与无效参数（`schema?`、`confirm_token`），凭据描述改为当前实现（本机 profile 文件）。
 - 验收：单测 181/181（28 suites，新增 ok 契约、删除计数、缺失 profile 错误用例）；headless 矩阵 `research/v011-tests/run8-batchA|B|C|D|B2|E|E2|E3.log` 覆盖 37/39 个工具（真实远端成功路径与 skill clone 仅错误路径）；live `/sci-status` 计数正常。
+
+## 21. 期刊图件质量闭环与 Result 推进视图（v0.13.0）
+
+- 图件数据：新增 `figure-plans.json`；登记记录保存计划快照、源数据路径、PDF/SVG/位图测量值、自动检查与人工终审。Nature profile 记录来源 URL 和核对日期；其他期刊使用 `generic`，不得把通用检查宣称为期刊合规。
+- 状态机：`planned → registered → failed|needs-attention|ready-for-manual-review → approved|rejected`。自动检查只覆盖可观察属性；`approved` 必须有研究者至少 10 字的实际检查依据，且自动 fail/warn 为零。重绘产生新版本，必须重新审计。
+- 前检内核：`lib/figureqa.js` 解析 PNG/JPEG/GIF/TIFF 像素、SVG viewBox/物理尺寸/字号与 PDF MediaBox；按最终宽度计算位图有效 dpi，并检查最大版面、代码、源数据、统计说明和模板许可。面板裁切、颜色/标尺、科学真实性与图注一致性保留为人工项。
+- 论文进度：`paperProgressOf` 从任务板、per-result 参考文献、图件审计和主张审查实时推导，不存主观百分比。团队页可按 Result 过滤任务；文章框架节点显示任务/文献/图件计数和唯一下一步；产物页显示图件计划、前检明细与可操作修复建议。
+- 第三方图库：Scientific Figure Library 作为独立 dsh 插件入口放在技能库，不进入角色 skill 克隆目录。插件只声明本地预览/确切版本/许可记录的兼容工作流，不声称内置第三方模板或自动执行其代码。

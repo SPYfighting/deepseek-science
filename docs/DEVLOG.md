@@ -760,3 +760,24 @@ finding，并贯通 /state、overview、export、工作台 UI（规格见 SPEC �
 - postgres/mysql2 → 纯 JS 无生命周期脚本
 - `package.json` 不含 ssh2（bundle 自包含）
 - `package-lock.json` 不入库（stale 条目触发消费端 build 门槛）
+
+## 2026-11-12：v0.12.0 r1 审查返工
+
+- 审查锚点：`cross-agent-review-files/2026-11-08-dsh-science-r1-审查.md`；结论为需返工，共 10 项发现。
+- 蓝图派单：新增 result_id/core/result 三重确认硬闸门与成员越权拒绝；先写失败测试再实现。
+- 安全：敏感状态文件禁止经 `/file` 下发，状态 URL 与凭据字段脱敏，profile 停止工作区镜像；修复 SSH profile 名缺失导致连接池共用 `undefined`；只读 SQL 追加常见副作用 SELECT 拦截。
+- 审查器：六项检查强制覆盖；不完整 JSON 与 parse fail 同样重试；完整事件流定位精确 turn，再截取该轮证据，找不到目标轮即失败。
+- 参考文献/UI：同 DOI 支持多 usedAs，新增 verify/remove，Crossref 标题优先；UI 补齐 method/concept/background/evidence 并明确任务回报台账语义。
+- 文档纠偏：角色 skill 仅为可发现性隔离；不再声称文件系统严格隔离。版本统一为 0.12.0，客户端 bundle 重建。
+- 验证：大优化后逐轮运行全量测试；最终轮为 225 tests / 223 pass / 0 fail / 2 skip。2 项 skip 是当前 Windows 沙箱无法创建符号链接/联接的环境限制。`npm pack --dry-run` 为 75 files、约 1.8 MB；headless/scidev/web 三个隔离 profile 已同步 v0.12.0，关键哈希一致且 ESM 导入通过。未连接外部 PostgreSQL/MySQL/SSH 服务，也未启动 DSH web/desktop 会话。
+
+## 2026-11-12：v0.13.0 科研绘图质量闭环与 Result 推进 UI
+
+- 调研：只读核对 Scientific Figure Library、SciencePlots、patchwork、svgutils、Scientific-Inkscape、Bioicons、SciSVG 和 academic-figure-skill。SFL 适合独立插件，不适合把混合许可证模板并入本包；academic-figure-skill 的问题驱动计划和 QA 分层值得吸收，但入口大小写、许可证文档、统一期刊高度和 R→PNG 拼版存在风险。两份报告写入 `docs/research/`。
+- TDD：先加入 `lib/figureqa.js` 缺失的失败用例，再实现 Nature/generic 可追溯 profile、PNG/JPEG/GIF/TIFF/SVG/PDF 测量、最终尺寸有效 dpi、最大版面、代码/源数据、统计说明和模板许可检查。自动状态与人工终审分离，自动 fail/warn 未清除时拒绝批准。
+- 图件工具：新增 `sci_figure_plan`、`sci_figure_audit` 和 `figure-plans.json`；register 支持 PDF、计划快照与源数据。相同文件补绑新计划不刷版本，但旧审计结论作废；计划状态和图件状态同步。
+- 论文状态：新增 `paperProgressOf`，以真实任务、per-result 文献核对、图件批准和主张审查计算每个 Result 的计数与唯一下一步；对失败/取消任务、受阻依赖和失效图件引用给出不同操作建议，不存主观百分比。
+- UI：成员头像带升级为自适应三列左右的小队卡，展示角色、在线状态、当前任务和在办数；团队任务流可按 Result 筛选。文章框架节点显示任务/文献/图件计数与完成条，详情显示下一步。产物页增加图件计划、前检状态、逐项修复建议和 PDF/TIFF 文件入口；技能库增加 SFL 独立可选插件卡。
+- 绘图技能：Python helper 增加毫米→英寸、明确最终尺寸、`svg.fonttype='none'` 和 PDF/SVG/PNG 默认导出；技能/角色/期刊参考统一到 plan→register→audit→manual review，明确自动通过不代表期刊接收。
+- 构建：把 `esbuild@0.25.0` 固定为 devDependency，移除 Windows 不兼容的 `/dev/null` 构建探测；客户端 bundle 重建为 v0.13.0。
+- 验证：`npm test` 235 tests / 233 pass / 0 fail / 2 skip；新增图件登记后被改写的回归测试，并用移除保护逻辑后的失败结果确认测试敏感性。`npm run build:client`、bundle syntax、host ESM import 通过。Matplotlib 实际生成 PDF/SVG/PNG（20,954/7,733/47,847 B）并清理临时文件。`npm pack --dry-run --json` 为 78 files、约 0.48 MB 压缩、1.89 MB 解包。当前机器无 DSH app/CLI，未做真实宿主截图或 profile 同步；该边界已写入 HANDOFF。

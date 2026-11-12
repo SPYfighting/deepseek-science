@@ -11,9 +11,10 @@ const home = mkdtempSync(join(tmpdir(), 'dsh-science-test-'))
 process.env.DSH_HOME = home
 
 const { parseFindings, runReview, awaitActivationResult } = await import('../lib/reviewer.js')
-const { coverageOf, loadBlueprint, alignTaskToResult, linkFigureToResult } = await import('../lib/blueprint.js')
+const { coverageOf, loadBlueprint, alignTaskToResult, linkFigureToResult, paperProgressOf } = await import('../lib/blueprint.js')
 const { registerBlueprintTools } = await import('../lib/blueprint.js')
-const { validateImageFile, svgActiveContentReason, decodeSvgText } = await import('../lib/figures.js')
+const { validateImageFile, svgActiveContentReason, decodeSvgText, registerFigureTools } = await import('../lib/figures.js')
+const { inspectFigureBuffer, auditFigureRecord, JOURNAL_PROFILES } = await import('../lib/figureqa.js')
 const { configOf, falsificationThresholdOf, blockedGateOf, dataDirOf } = await import('../lib/store.js')
 const { registerTeamTools, wakeRoleMembers, sanitizeTeamState } = await import('../lib/team.js')
 const { DEFAULT_TEAM } = await import('../lib/roles.js')
@@ -25,10 +26,10 @@ const { statusReportOf } = await import('../lib/status.js')
 const { apply } = await import('../lib/index.js')
 const { registerStateRoute } = await import('../lib/httpdata.js')
 const { registerDbTools } = await import('../lib/db.js')
-const { registerSshTools } = await import('../lib/ssh.js')
+const { registerSshTools, sshProfilePoolKey } = await import('../lib/ssh.js')
 
 const dataDir = dataDirOf()
-const stateFiles = ['config.json', 'team.json', 'blueprint.json', 'figures.json', 'reviews.json', 'db-profiles.json', 'ssh-profiles.json', 'ssh-jobs.json', 'role-skills.json']
+const stateFiles = ['config.json', 'team.json', 'blueprint.json', 'figures.json', 'figure-plans.json', 'reviews.json', 'db-profiles.json', 'ssh-profiles.json', 'ssh-jobs.json', 'role-skills.json']
 const roleSkillsDir = join(dataDir, 'role-skills')
 
 function resetState() {
@@ -44,7 +45,13 @@ function writeConfig(obj) {
 }
 
 const FINDING = { severity: 'pass', check: 'number-traceability', claim: 'c', evidence: 'e', message: 'ok' }
+const COMPLETE_FINDINGS = [
+  FINDING,
+  ...['claim-execution', 'figure-consistency', 'citation-hygiene', 'fabrication', 'plan-completion']
+    .map((check) => ({ ...FINDING, check })),
+]
 const findingsJson = (arr = [FINDING]) => JSON.stringify({ findings: arr })
+const completeFindingsJson = () => findingsJson(COMPLETE_FINDINGS)
 
 // ---------------------------------------------------------------------------
 describe('F-B: parseFindings 健壮化', () => {
@@ -153,7 +160,7 @@ describe('F-A: runReview 的 startActivation 调用形状（对照官方 dsh-too
   test('spec 形状符合 SubagentActivationSpec：request 必有、signal 只在 spec 层', async () => {
     const { ctx, calls } = mockCtxWithSubagent(async () => ({
       childId: 'child-1',
-      result: Promise.resolve({ output: [{ type: 'text', text: findingsJson() }] }),
+      result: Promise.resolve({ output: [{ type: 'text', text: completeFindingsJson() }] }),
       dispose: async () => {},
     }))
     const agent = { id: 'lead-1', session: mockSession(reviewEvents) }
@@ -176,7 +183,7 @@ describe('F-A: runReview 的 startActivation 调用形状（对照官方 dsh-too
     const { ctx, calls } = mockCtxWithSubagent(async (_spec, n) => ({
       childId: `child-${n}`,
       result: Promise.resolve({
-        output: [{ type: 'text', text: n === 1 ? '这不是 JSON' : findingsJson() }],
+        output: [{ type: 'text', text: n === 1 ? '这不是 JSON' : completeFindingsJson() }],
       }),
       dispose: async () => {},
     }))
@@ -204,6 +211,24 @@ describe('F-A: runReview 的 startActivation 调用形状（对照官方 dsh-too
     assert.equal(r.parseFailed, true)
     const reviews = JSON.parse(readFileSync(join(dataDir, 'reviews.json'), 'utf8'))
     assert.equal(Object.values(reviews)[0].status, 'parse-failed')
+  })
+
+  test('合法 JSON 缺少六项检查也会重试并 fail-closed', async () => {
+    const { ctx, calls } = mockCtxWithSubagent(async () => ({
+      childId: 'child-incomplete', result: Promise.resolve({ output: [{ type: 'text', text: findingsJson() }] }), dispose: async () => {},
+    }))
+    const r = await runReview(ctx, { id: 'lead-1', session: mockSession(reviewEvents) }, 'session-test', 1, {})
+    assert.equal(calls.length, 2)
+    assert.equal(r.ok, false)
+    assert.equal(r.parseFailed, true)
+  })
+
+  test('目标 turn 不存在时明确失败，不拿最后事件替代', async () => {
+    const { ctx, calls } = mockCtxWithSubagent(async () => { throw new Error('不应启动') })
+    const r = await runReview(ctx, { id: 'lead-1', session: mockSession(reviewEvents) }, 'session-test', 99, {})
+    assert.equal(r.ok, false)
+    assert.match(r.reason, /找不到 turn 99/)
+    assert.equal(calls.length, 0)
   })
 
   test('startActivation 抛错 → failed 落盘，不重试', async () => {
@@ -509,6 +534,224 @@ describe('SVG 可执行内容检测（安全）', () => {
 })
 
 // ---------------------------------------------------------------------------
+function pngFixture(width, height) {
+  const buf = Buffer.alloc(24)
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buf, 0)
+  buf.writeUInt32BE(13, 8)
+  buf.write('IHDR', 12, 'ascii')
+  buf.writeUInt32BE(width, 16)
+  buf.writeUInt32BE(height, 20)
+  return buf
+}
+
+describe('期刊图件计划与投稿前检', () => {
+  beforeEach(resetState)
+
+  test('Nature 配置可追溯，PNG 按最终物理宽度计算有效 dpi', () => {
+    assert.equal(JOURNAL_PROFILES.nature.widthsMm.single, 89)
+    assert.equal(JOURNAL_PROFILES.nature.fontPt.min, 5)
+    assert.match(JOURNAL_PROFILES.nature.source, /^https:\/\//)
+    const inspected = inspectFigureBuffer('figure.png', pngFixture(1200, 600))
+    assert.deepEqual(inspected.pixelSize, { width: 1200, height: 600 })
+    const audit = auditFigureRecord({
+      path: 'figure.png',
+      codePath: 'plot.py',
+      sourceDataPaths: ['source.csv'],
+      plan: {
+        targetJournal: 'nature', targetWidthMm: 89, requiresStatistics: true,
+        statisticsNote: 'mean ± s.e.m.; n=6 biological replicates',
+      },
+    }, inspected, { pathExists: () => true })
+    assert.equal(audit.measurements.effectiveDpi > 342, true)
+    assert.equal(audit.checks.find((x) => x.id === 'effective-dpi').status, 'pass')
+    assert.equal(audit.automaticStatus, 'ready-for-manual-review')
+    assert.equal(audit.overallStatus, 'ready-for-manual-review')
+  })
+
+  test('低有效 dpi 失败；缺代码与源数据给出可操作警告', () => {
+    const inspected = inspectFigureBuffer('figure.png', pngFixture(400, 200))
+    const audit = auditFigureRecord({
+      path: 'figure.png',
+      plan: { targetJournal: 'nature', targetWidthMm: 183, requiresStatistics: false },
+    }, inspected, { pathExists: () => false })
+    assert.equal(audit.checks.find((x) => x.id === 'effective-dpi').status, 'fail')
+    assert.equal(audit.checks.find((x) => x.id === 'code-source').status, 'warn')
+    assert.equal(audit.checks.find((x) => x.id === 'source-data').status, 'warn')
+    assert.equal(audit.automaticStatus, 'failed')
+  })
+
+  test('最终版面超过期刊最大宽高时失败', () => {
+    const inspected = inspectFigureBuffer('wide.png', pngFixture(4000, 4000))
+    const audit = auditFigureRecord({
+      codePath: 'plot.py', sourceDataPaths: ['source.csv'],
+      plan: { targetJournal: 'nature', targetWidthMm: 190, requiresStatistics: false },
+    }, inspected, { pathExists: () => true })
+    const size = audit.checks.find((x) => x.id === 'target-size')
+    assert.equal(size.status, 'fail')
+    assert.match(size.requirement, /183 mm/)
+  })
+
+  test('PDF 作为投稿图件可登记，但可编辑文字保留为人工检查', () => {
+    const pdf = Buffer.from('%PDF-1.7\n1 0 obj<</Type /Page /MediaBox [0 0 640.8 360]>>endobj')
+    assert.equal(validateImageFile('figure.pdf', pdf).ok, true)
+    const inspected = inspectFigureBuffer('figure.pdf', pdf)
+    assert.equal(inspected.kind, 'vector')
+    assert.equal(inspected.physicalSize.widthMm > 225, true)
+  })
+
+  test('plan → register → audit → 人工批准形成闭环并持久化', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-figure-qa-'))
+    try {
+      const figPath = join(dir, 'figure.png')
+      const codePath = join(dir, 'plot.py')
+      const dataPath = join(dir, 'source.csv')
+      writeFileSync(figPath, pngFixture(1200, 600))
+      writeFileSync(codePath, 'print("plot")', 'utf8')
+      writeFileSync(dataPath, 'x,y\n1,2\n', 'utf8')
+      const tools = {}
+      registerFigureTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+      assert.ok(tools.sci_figure_plan)
+      assert.ok(tools.sci_figure_audit)
+      const plan = await tools.sci_figure_plan.execute({
+        figure_title: '主要结果图', result_id: 'res-1', target_journal: 'nature',
+        target_width_mm: 89, requires_statistics: true,
+        statistics_note: 'mean ± s.e.m.; n=6 biological replicates',
+        source_data_paths: [dataPath],
+      }, {})
+      assert.equal(plan.ok, true)
+      const reg = await tools.sci_figure_register.execute({
+        path: figPath, figure_title: '主要结果图', code_path: codePath, plan_id: plan.planId,
+      }, {})
+      assert.equal(reg.ok, true)
+      assert.equal(reg.planId, plan.planId)
+      const audited = await tools.sci_figure_audit.execute({ figure_id: reg.figureId }, {})
+      assert.equal(audited.audit.overallStatus, 'ready-for-manual-review')
+      const approved = await tools.sci_figure_audit.execute({
+        figure_id: reg.figureId, manual_decision: 'approved', review_note: '按 89 mm 最终尺寸检查，文字与面板均可读。',
+      }, {})
+      assert.equal(approved.audit.overallStatus, 'approved')
+      const list = await tools.sci_figure_list.execute({}, {})
+      assert.equal(list.figures[0].audit.overallStatus, 'approved')
+      assert.equal(list.figures[0].plan.targetJournal, 'nature')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('登记后的图件文件被改写时拒绝沿用旧版本前检', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-figure-integrity-'))
+    try {
+      const figPath = join(dir, 'figure.png')
+      writeFileSync(figPath, pngFixture(1200, 600))
+      const tools = {}
+      registerFigureTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+      const reg = await tools.sci_figure_register.execute({ path: figPath, figure_title: '完整性检查图' }, {})
+
+      writeFileSync(figPath, pngFixture(1300, 600))
+
+      await assert.rejects(
+        () => tools.sci_figure_audit.execute({ figure_id: reg.figureId }, {}),
+        /登记后已改变.*重新调用 sci_figure_register/,
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('同一文件补绑新计划不刷版本，但会清除旧前检结论', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-figure-replan-'))
+    try {
+      const figPath = join(dir, 'figure.png')
+      const codePath = join(dir, 'plot.py')
+      const dataPath = join(dir, 'source.csv')
+      writeFileSync(figPath, pngFixture(1200, 600))
+      writeFileSync(codePath, 'print("plot")', 'utf8')
+      writeFileSync(dataPath, 'x,y\n1,2\n', 'utf8')
+      const tools = {}
+      registerFigureTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+      const makePlan = () => tools.sci_figure_plan.execute({
+        figure_title: '同一图', target_journal: 'nature', target_width_mm: 89,
+        source_data_paths: [dataPath], requires_statistics: false,
+      }, {})
+      const plan1 = await makePlan()
+      const first = await tools.sci_figure_register.execute({ path: figPath, code_path: codePath, plan_id: plan1.planId }, {})
+      await tools.sci_figure_audit.execute({ figure_id: first.figureId, manual_decision: 'approved', review_note: '按最终尺寸核对，面板与文字均符合要求。' }, {})
+      const plan2 = await makePlan()
+      const rebound = await tools.sci_figure_register.execute({ path: figPath, code_path: codePath, plan_id: plan2.planId }, {})
+      assert.equal(rebound.unchanged, true)
+      assert.equal(rebound.metadataUpdated, true)
+      assert.equal(rebound.version, 1)
+      assert.equal(rebound.planId, plan2.planId)
+      const list = await tools.sci_figure_list.execute({}, {})
+      assert.equal(list.figures[0].audit, undefined)
+      assert.equal(list.figures[0].planId, plan2.planId)
+      const plans = JSON.parse(readFileSync(join(dataDir, 'figure-plans.json'), 'utf8'))
+      assert.equal(plans[plan1.planId].status, 'superseded')
+      assert.equal(plans[plan1.planId].supersededBy, plan2.planId)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('Result 驱动的论文推进视图', () => {
+  test('按真实任务、文献、图件与审查计算进度和下一步', () => {
+    const bp = {
+      core: { claim: '核心', confirmed: true },
+      results: [
+        {
+          id: 'res-1', title: '已形成证据链', claim: 'A', confirmed: true, status: 'supported',
+          tasks: ['task-1', 'task-2'], figures: ['fig-1'],
+          references: [{ doi: '10.1/a', verified: true }, { doi: '10.1/b', verified: false }],
+        },
+        { id: 'res-2', title: '待确认', claim: 'B', confirmed: false, status: 'planned', tasks: [], figures: [], references: [] },
+      ],
+    }
+    const team = { tasks: [
+      { id: 'task-1', resultId: 'res-1', status: 'completed', assignee: 'analyst' },
+      { id: 'task-2', resultId: 'res-1', status: 'in_progress', assignee: 'figure' },
+    ] }
+    const figures = { 'fig-1': { id: 'fig-1', audit: { overallStatus: 'approved' } } }
+    const review = {
+      results: [
+        { id: 'res-1', claim: 'A', severity: 'pass', runId: 'rev-1' },
+        { id: 'res-2', claim: 'B', severity: 'none' },
+      ],
+    }
+    const out = paperProgressOf(bp, team, figures, review)
+    const r1 = out.results[0]
+    assert.deepEqual(r1.tasks, { total: 2, completed: 1, active: 1, blocked: 0, failed: 0, cancelled: 0 })
+    assert.deepEqual(r1.references, { total: 2, verified: 1 })
+    assert.deepEqual(r1.figures, { total: 1, registered: 1, missing: 0, audited: 1, approved: 1 })
+    assert.equal(r1.review.severity, 'pass')
+    assert.match(r1.nextAction, /推进剩余 1 项任务/)
+    assert.equal(r1.owner, 'figure')
+    assert.match(out.results[1].nextAction, /确认/)
+  })
+
+  test('失败任务与失效图件引用给出可操作下一步，不伪报普通进行中', () => {
+    const base = {
+      core: { confirmed: true },
+      results: [{ id: 'res-1', confirmed: true, status: 'planned', tasks: ['task-1'], figures: ['fig-missing'], references: [{ doi: '10.1/x', verified: true }] }],
+    }
+    const failed = paperProgressOf(base, { tasks: [{ id: 'task-1', status: 'failed' }] }, {}, null).results[0]
+    assert.equal(failed.tasks.failed, 1)
+    assert.match(failed.nextAction, /诊断并重跑/)
+    const completed = paperProgressOf(base, { tasks: [{ id: 'task-1', status: 'completed' }] }, {}, null).results[0]
+    assert.equal(completed.figures.missing, 1)
+    assert.match(completed.nextAction, /失效图件引用/)
+  })
+
+  test('SFL 以独立 dsh 插件入口暴露，不混入角色 skill 克隆目录', () => {
+    const snap = skillMenuSnapshot()
+    const sfl = snap.integrations.find((x) => x.id === 'scientific-figure-library')
+    assert.equal(sfl.kind, 'dsh-plugin')
+    assert.match(sfl.installCommand, /dsh plugin --profile web add scientific-figure-library/)
+    assert.equal((snap.catalog['figure-expert'] || []).some((x) => x.id === 'scientific-figure-library'), false)
+  })
+})
+
+// ---------------------------------------------------------------------------
 describe('configOf 容错', () => {
   beforeEach(resetState)
   test('无文件 → {}', () => {
@@ -554,6 +797,13 @@ function teamCtx() {
 
 function seedTeam(tasks = [], members = [{ name: 'analyst', role: 'analyst', childId: 'child-analyst' }]) {
   writeFileSync(join(dataDir, 'team.json'), JSON.stringify({ members, tasks, taskSeq: tasks.length }, null, 2), 'utf8')
+  if (!existsSync(join(dataDir, 'blueprint.json'))) {
+    writeFileSync(join(dataDir, 'blueprint.json'), JSON.stringify({
+      core: { title: 't', claim: 'c', confirmed: true },
+      results: [{ id: 'res-1', claim: 'x', confirmed: true, status: 'planned', tasks: [], figures: [] }],
+      resultSeq: 1,
+    }), 'utf8')
+  }
 }
 
 const exec = { agent: { id: 'lead-1' } }
@@ -565,7 +815,7 @@ describe('blocked_by 闸门（默认软警告，config blockedGate=hard 硬闸�
     seedTeam([{ id: 'task-1', subject: 'dep', status: 'claimed', assignee: 'analyst', blockedBy: [] }])
     const { tools } = teamCtx()
     const out = await tools.sci_team_dispatch.execute(
-      { subject: '后续分析', task_desc: '等 task-1', assignee: 'analyst', blocked_by: ['task-1'] },
+      { subject: '后续分析', task_desc: '等 task-1', assignee: 'analyst', blocked_by: ['task-1'], result_id: 'res-1' },
       exec,
     )
     assert.equal(out.ok, true)
@@ -582,7 +832,7 @@ describe('blocked_by 闸门（默认软警告，config blockedGate=hard 硬闸�
     const { tools } = teamCtx()
     await assert.rejects(
       tools.sci_team_dispatch.execute(
-        { subject: '后续分析', task_desc: 'x', assignee: 'analyst', blocked_by: ['task-1'] },
+        { subject: '后续分析', task_desc: 'x', assignee: 'analyst', blocked_by: ['task-1'], result_id: 'res-1' },
         exec,
       ),
       /依赖/,
@@ -596,7 +846,7 @@ describe('blocked_by 闸门（默认软警告，config blockedGate=hard 硬闸�
     seedTeam([{ id: 'task-1', subject: 'dep', status: 'completed', assignee: 'analyst', blockedBy: [] }])
     const { tools } = teamCtx()
     const out = await tools.sci_team_dispatch.execute(
-      { subject: '后续分析', task_desc: 'x', assignee: 'analyst', blocked_by: ['task-1'] },
+      { subject: '后续分析', task_desc: 'x', assignee: 'analyst', blocked_by: ['task-1'], result_id: 'res-1' },
       exec,
     )
     assert.equal(out.ok, true)
@@ -608,20 +858,86 @@ describe('blocked_by 闸门（默认软警告，config blockedGate=hard 硬闸�
     writeConfig({ blockedGate: 'hard' })
     const { tools } = teamCtx()
     await assert.rejects(
-      tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', blocked_by: ['task-99'] }, exec),
+      tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', blocked_by: ['task-99'], result_id: 'res-1' }, exec),
       /task-99/,
     )
     writeConfig({ blockedGate: 'warn' })
-    const out = await tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', blocked_by: ['task-99'] }, exec)
+    const out = await tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', blocked_by: ['task-99'], result_id: 'res-1' }, exec)
     assert.equal(out.dependencyGate.unresolved[0].status, 'missing')
   })
 
   test('无 blocked_by：输出不含 dependencyGate', async () => {
     seedTeam([])
     const { tools } = teamCtx()
-    const out = await tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x' }, exec)
+    const out = await tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', result_id: 'res-1' }, exec)
     assert.equal(out.ok, true)
     assert.ok(!('dependencyGate' in out))
+  })
+})
+
+describe('r1-F1：蓝图确认是派单硬闸门', () => {
+  beforeEach(resetState)
+
+  const writeBlueprint = (coreConfirmed, resultConfirmed) => writeFileSync(
+    join(dataDir, 'blueprint.json'),
+    JSON.stringify({
+      core: { title: 't', claim: 'core claim', confirmed: coreConfirmed },
+      results: [{ id: 'res-1', claim: 'result claim', confirmed: resultConfirmed, status: 'planned', tasks: [], figures: [] }],
+      resultSeq: 1,
+    }),
+    'utf8',
+  )
+
+  test('缺 result_id、core 未确认、result 未确认均在建任务前拒绝；完整确认才允许', async () => {
+    seedTeam([])
+    const { tools } = teamCtx()
+    await assert.rejects(
+      tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x' }, exec),
+      /result_id.*必填|必须.*result/i,
+    )
+    writeBlueprint(false, true)
+    await assert.rejects(
+      tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', result_id: 'res-1' }, exec),
+      /核心.*未确认|core.*confirmed/i,
+    )
+    writeBlueprint(true, false)
+    await assert.rejects(
+      tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', result_id: 'res-1' }, exec),
+      /result res-1 尚未确认/,
+    )
+    writeBlueprint(true, true)
+    await assert.rejects(
+      tools.sci_team_dispatch.execute(
+        { subject: 'x', task_desc: 'x', result_id: 'res-1' },
+        { agent: { id: 'child-analyst' } },
+      ),
+      /只有队长.*派单/,
+    )
+    const out = await tools.sci_team_dispatch.execute({ subject: 'x', task_desc: 'x', result_id: 'res-1' }, exec)
+    assert.equal(out.ok, true)
+    assert.equal(JSON.parse(readFileSync(join(dataDir, 'team.json'), 'utf8')).tasks.length, 1)
+  })
+})
+
+describe('r1-F7：per-result DOI 与 usedAs 工作流', () => {
+  beforeEach(resetState)
+  test('同 DOI 可分用途共存，规范标题优先，可复核并移除', async () => {
+    writeFileSync(join(dataDir, 'blueprint.json'), JSON.stringify({ core: {}, results: [{ id: 'res-1', claim: 'c', references: [] }], resultSeq: 1 }), 'utf8')
+    const tools = {}; registerBlueprintTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+    const oldFetch = globalThis.fetch
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ message: { title: ['Crossref canonical title'] } }) })
+    try {
+      await assert.rejects(tools.sci_result_reference_add.execute({ result_id: 'res-1', ref_doi: '10.1/x', used_as: 'wrong' }, {}), /used_as/)
+      const method = await tools.sci_result_reference_add.execute({ result_id: 'res-1', ref_doi: '10.1/X', ref_title: 'wrong title', used_as: 'method' }, {})
+      const evidence = await tools.sci_result_reference_add.execute({ result_id: 'res-1', ref_doi: 'https://doi.org/10.1/x', used_as: 'evidence' }, {})
+      assert.equal(method.reference.title, 'Crossref canonical title')
+      assert.equal(method.reference.providedTitle, 'wrong title')
+      assert.equal(evidence.referencesCount, 2)
+      const verified = await tools.sci_result_reference_verify.execute({ result_id: 'res-1', ref_doi: '10.1/x', used_as: 'method' }, {})
+      assert.equal(verified.ok, true)
+      const removed = await tools.sci_result_reference_remove.execute({ result_id: 'res-1', ref_doi: '10.1/x', used_as: 'method' }, {})
+      assert.equal(removed.referencesCount, 1)
+    } finally { globalThis.fetch = oldFetch }
   })
 })
 
@@ -1101,7 +1417,7 @@ describe('第四轮审核修复：malformed 状态与客户端安全归一', () 
     ])
     const { tools } = teamCtx()
     const out = await tools.sci_team_dispatch.execute(
-      { subject: '后续', task_desc: 'x', assignee: 'analyst', blocked_by: ['task-1', 'task-2'] },
+      { subject: '后续', task_desc: 'x', assignee: 'analyst', blocked_by: ['task-1', 'task-2'], result_id: 'res-1' },
       exec,
     )
     assert.equal(out.ok, true)
@@ -1116,6 +1432,9 @@ describe('第四轮审核修复：malformed 状态与客户端安全归一', () 
     writeFileSync(join(dataDir, 'blueprint.json'), JSON.stringify({
       core: { claim: 'c' },
       results: [null, { id: 'res-1', claim: 'ok', tasks: ['task-1'], figures: [] }],
+    }), 'utf8')
+    writeFileSync(join(dataDir, 'figure-plans.json'), JSON.stringify({
+      'figplan-1': { id: 'figplan-1', title: '验证图', resultId: 'res-1', status: 'planned', updatedAt: 2 },
     }), 'utf8')
     let handler = null
     const server = { register: (def) => { if (def.path === '/plugins/dsh-science/state') handler = def.handler; return () => {} } }
@@ -1132,6 +1451,33 @@ describe('第四轮审核修复：malformed 状态与客户端安全归一', () 
     assert.deepEqual(payload.team.tasks.map((t) => t.id), ['task-1'])
     assert.deepEqual(payload.team.tasks[0].blockedBy, [])
     assert.deepEqual(payload.blueprint.results.map((r) => r.id), ['res-1'])
+    assert.equal(payload.blueprint.paperProgress.results[0].tasks.total, 1)
+    assert.equal(payload.blueprint.paperProgress.results[0].nextAction, '先向用户复述并确认该 Result，确认前不能派发执行任务。')
+    assert.deepEqual(payload.figurePlans.map((p) => p.id), ['figplan-1'])
+  })
+})
+
+describe('r1-F2：HTTP 状态与文件路由不泄漏凭据', () => {
+  beforeEach(resetState)
+  test('敏感 profile 文件返回 404，状态 URL 去除内嵌认证信息', async () => {
+    writeFileSync(join(dataDir, 'db-profiles.json'), JSON.stringify({ pg: { kind: 'postgres', url: 'postgres://alice:secret@db.local/x', password: 'secret2' } }), 'utf8')
+    writeFileSync(join(dataDir, 'ssh-profiles.json'), JSON.stringify({ h: { host: 'h', username: 'u', password: 'secret3' } }), 'utf8')
+    const handlers = {}
+    const server = { register: (def) => { handlers[def.path] = def.handler; return () => {} } }
+    registerStateRoute({ get: (k) => (k === 'webServer' ? server : undefined), effect: (fn) => fn(), tools: { register() {} } })
+    const call = async (path) => {
+      let status = 0; let body = ''
+      const res = { writeHead: (code) => { status = code }, end: (b) => { body = String(b || '') } }
+      await handlers[path.split('?')[0]]({ url: path, headers: {} }, res)
+      return { status, body }
+    }
+    const file = await call(`/plugins/dsh-science/file?path=${encodeURIComponent(join(dataDir, 'ssh-profiles.json'))}`)
+    assert.equal(file.status, 404)
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    const state = await call('/plugins/dsh-science/state')
+    assert.equal(state.status, 200)
+    assert.ok(!state.body.includes('secret'))
+    assert.ok(!state.body.includes('alice'))
   })
 })
 
@@ -1505,7 +1851,7 @@ describe('第六轮补：/sci-status 命令接线与容错', () => {
     seedTeam([{ id: 'task-1', subject: 'legacy', blockedBy: [] }], [])
     const { tools } = teamCtx()
     const out = await tools.sci_team_dispatch.execute(
-      { subject: 'downstream', task_desc: 'needs task-1', blocked_by: ['task-1'] },
+      { subject: 'downstream', task_desc: 'needs task-1', blocked_by: ['task-1'], result_id: 'res-1' },
       exec,
     )
     assert.deepEqual(JSON.parse(JSON.stringify(out)), out)
@@ -1607,12 +1953,47 @@ describe('第八轮：工具返回 ok 契约（headless 矩阵发现）', () => 
     assert.equal(q.rows[0].ok, 1)
   })
 
+  test('数据库只读入口拒绝有副作用 SELECT，profile 不落明文密码', async () => {
+    const tools = {}
+    registerDbTools({ tools: { register: (d) => { tools[d.name] = d } } }, {})
+    await assert.rejects(
+      tools.sci_db_query.execute({ profile: 'missing', sql: "SELECT 1 INTO OUTFILE '/tmp/leak'" }, {}),
+      /只读守卫/,
+    )
+    await assert.rejects(
+      tools.sci_db_profiles.execute({ action: 'add', name: 'pg', profile: { kind: 'postgres', host: 'db', user: 'u', password: 'secret' } }, {}),
+      /拒绝把数据库密码写入文件/,
+    )
+    assert.equal(existsSync(join(dataDir, 'db-profiles.json')), false)
+  })
+
   test('ssh profile list 返回 ok=true', async () => {
     writeFileSync(join(dataDir, 'ssh-profiles.json'), '{}', 'utf8')
     const tools = {}
     registerSshTools({ tools: { register: (d) => { tools[d.name] = d } }, on: () => {} }, {})
     const out = await tools.sci_ssh_profiles.execute({ action: 'list' }, {})
     assert.equal(out.ok, true)
+  })
+
+  test('SSH profile 拒绝持久化明文密码，允许 credentialsRef', async () => {
+    const tools = {}
+    registerSshTools({ tools: { register: (d) => { tools[d.name] = d } }, on: () => {} }, {})
+    await assert.rejects(
+      tools.sci_ssh_profiles.execute({ action: 'add', name: 'h1', profile: { host: 'h', username: 'u', auth: 'password', password: 'secret' } }, {}),
+      /拒绝把 SSH 密码/,
+    )
+    const out = await tools.sci_ssh_profiles.execute({ action: 'add', name: 'h1', profile: { host: 'h', username: 'u', auth: 'password', credentialsRef: 'SSH_H1_PASSWORD' } }, {})
+    assert.equal(out.ok, true)
+    const stored = JSON.parse(readFileSync(join(dataDir, 'ssh-profiles.json'), 'utf8')).h1
+    assert.equal(stored.password, undefined)
+    assert.equal(stored.credentialsRef, 'SSH_H1_PASSWORD')
+  })
+
+  test('SSH 连接池键显式取 profile 名，不同主机不会共用 undefined', () => {
+    assert.equal(sshProfilePoolKey('lab-a'), 'lab-a')
+    assert.equal(sshProfilePoolKey('lab-b'), 'lab-b')
+    assert.notEqual(sshProfilePoolKey('lab-a'), sshProfilePoolKey('lab-b'))
+    assert.throws(() => sshProfilePoolKey(undefined), /名称为空/)
   })
 
   test('已删除任务不计入 /sci-status 任务数与完成数', () => {

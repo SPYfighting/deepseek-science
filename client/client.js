@@ -101,7 +101,7 @@ function dependencyClosure(startId, tasks) {
 // client-src/index.jsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var inject = ["sidebarRightTabs", "slots", "resources"];
-var VERSION = "0.11.0";
+var VERSION = "0.13.0";
 var STATE_URL = "/plugins/dsh-science/state";
 var POLL_MS = 3e3;
 var teamRuntime = { hasRecordedParents: false };
@@ -173,6 +173,22 @@ var SCREENING_COLOR = {
   exclude: C.err,
   maybe: C.warn
 };
+var FIGURE_AUDIT_LABEL = {
+  "not-audited": "\u672A\u524D\u68C0",
+  failed: "\u524D\u68C0\u5931\u8D25",
+  "needs-attention": "\u9700\u5904\u7406",
+  "ready-for-manual-review": "\u5F85\u4EBA\u5DE5\u7EC8\u5BA1",
+  approved: "\u5DF2\u4EBA\u5DE5\u7EC8\u5BA1",
+  rejected: "\u4EBA\u5DE5\u9000\u56DE"
+};
+var FIGURE_AUDIT_COLOR = {
+  "not-audited": C.faint,
+  failed: C.err,
+  "needs-attention": C.warn,
+  "ready-for-manual-review": C.accent,
+  approved: C.ok,
+  rejected: C.err
+};
 var LIVE_COLOR = {
   running: C.accent,
   idle: C.ok,
@@ -214,6 +230,12 @@ function pathInsideWorkspace(absPath, workspaceRoot) {
   const p = normPath(absPath);
   const root = normPath(workspaceRoot);
   return p === root ? false : p.startsWith(`${root}/`);
+}
+function figurePreviewable(path) {
+  return /\.(?:png|jpe?g|gif|webp|svg)$/i.test(String(path || ""));
+}
+function figureAuditStatus(figure) {
+  return figure && figure.audit && figure.audit.overallStatus || "not-audited";
 }
 function normalizeClientState(raw) {
   if (!raw || typeof raw !== "object") return raw;
@@ -263,6 +285,7 @@ function DataGate({ state, children, fallback }) {
     if (state.error) {
       return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FDE\u63A5\u6570\u636E\u901A\u9053\u5931\u8D25\uFF08web \u6863\u6848\u8BF7\u786E\u8BA4\u670D\u52A1\u5DF2\u542F\u52A8\uFF09\u3002" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { textAlign: "center", marginBottom: 8 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: state.refresh, children: "\u7ACB\u5373\u91CD\u8BD5" }) }),
         fallback
       ] });
     }
@@ -276,7 +299,8 @@ function DataGate({ state, children, fallback }) {
     state.error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: { color: C.faint, fontSize: 10, margin: "0 0 4px" }, children: [
       "\u5237\u65B0\u5931\u8D25\uFF08",
       String(state.error && state.error.message),
-      "\uFF09\uFF0C\u4EE5\u4E0B\u4E3A\u6700\u8FD1\u7F13\u5B58\u3002"
+      "\uFF09\uFF0C\u4EE5\u4E0B\u4E3A\u6700\u8FD1\u7F13\u5B58\u3002 ",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: state.refresh, children: "\u91CD\u8BD5" })
     ] }),
     content
   ] });
@@ -398,6 +422,70 @@ function CmdChip({ cmd }) {
       children: copied ? "\u5DF2\u590D\u5236 \u2713" : cmd
     }
   );
+}
+function FigureAuditBadge({ figure }) {
+  const status = figureAuditStatus(figure);
+  const color = FIGURE_AUDIT_COLOR[status] || C.faint;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    "span",
+    {
+      "data-figure-audit": status,
+      title: "\u81EA\u52A8\u524D\u68C0\u4E0D\u66FF\u4EE3\u79D1\u5B66\u6B63\u786E\u6027\u4E0E\u671F\u520A\u63A5\u6536\u5224\u65AD",
+      style: { fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px", flexShrink: 0 },
+      children: FIGURE_AUDIT_LABEL[status] || status
+    }
+  );
+}
+function FigureAuditDetails({ figure }) {
+  const audit = figure && figure.audit;
+  if (!audit) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { onClick: (e) => e.stopPropagation(), style: { marginTop: 5, display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap", fontSize: 10, color: C.warn }, children: [
+      "\u5C1A\u672A\u6267\u884C\u6295\u7A3F\u524D\u68C0 ",
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_figure_audit figure_id=${figure.id}` })
+    ] });
+  }
+  const measurements = audit.measurements || {};
+  const summary = audit.summary || {};
+  const size = measurements.targetWidthMm ? `${measurements.targetWidthMm}${measurements.targetHeightMm ? ` \xD7 ${measurements.targetHeightMm}` : ""} mm` : "\u672A\u58F0\u660E\u6700\u7EC8\u5C3A\u5BF8";
+  const resolution = measurements.kind === "vector" ? "\u77E2\u91CF" : measurements.effectiveDpi ? `${measurements.effectiveDpi} dpi` : "dpi \u672A\u77E5";
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { onClick: (e) => e.stopPropagation(), style: { marginTop: 5, fontSize: 10, color: C.muted }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("summary", { style: { cursor: "pointer", color: C.fg }, children: [
+      audit.profile && audit.profile.label ? audit.profile.label : "\u901A\u7528\u79D1\u7814\u56FE\u4EF6",
+      " \xB7 ",
+      size,
+      " \xB7 ",
+      resolution,
+      " \xB7 ",
+      summary.pass || 0,
+      " \u901A\u8FC7 / ",
+      summary.warn || 0,
+      " \u63D0\u9192 / ",
+      summary.fail || 0,
+      " \u5931\u8D25"
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, borderLeft: `2px solid ${FIGURE_AUDIT_COLOR[audit.overallStatus] || C.border}`, paddingLeft: 7 }, children: [
+      (Array.isArray(audit.checks) ? audit.checks : []).map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { margin: "3px 0", color: item.status === "fail" ? C.err : item.status === "warn" ? C.warn : item.status === "pass" ? C.ok : C.muted }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [
+          item.status === "pass" ? "\u2713" : item.status === "fail" ? "\u2715" : item.status === "warn" ? "!" : "\u4EBA\u5DE5",
+          " ",
+          item.label
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted }, children: [
+          " \xB7 ",
+          item.observed
+        ] }),
+        (item.status === "fail" || item.status === "warn") && item.action && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.fg, paddingLeft: 12 }, children: [
+          "\u64CD\u4F5C\uFF1A",
+          item.action
+        ] })
+      ] }, item.id)),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 5, color: C.faint }, children: audit.disclaimer }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_figure_audit figure_id=${figure.id}` }),
+        audit.automaticStatus === "ready-for-manual-review" && audit.overallStatus !== "approved" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\u6700\u7EC8\u5C3A\u5BF8\u6838\u5BF9\u540E\uFF0C\u518D\u7531\u7814\u7A76\u8005\u63D0\u4EA4\u4EBA\u5DE5\u7ED3\u8BBA\u3002" })
+      ] })
+    ] })
+  ] });
 }
 function ViewToggle({ view, graphValue, listValue, graphLabel, listLabel, onChange }) {
   const chip = (active) => ({
@@ -536,6 +624,92 @@ function ProgressOverview({ tasks }) {
     )
   ] });
 }
+function PaperProgressOverview({ progress, selectedId, onSelect, allLabel = "\u5168\u90E8\u4EFB\u52A1" }) {
+  const rows = progress && Array.isArray(progress.results) ? progress.results : [];
+  const summary = progress && progress.summary || {};
+  if (rows.length === 0) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8BBA\u6587\u63A8\u8FDB", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709 Result\u3002\u5148\u4E0E\u7528\u6237\u786E\u8BA4\u6587\u7AE0\u6838\u5FC3\u5E76\u7528 sci_result_add \u5EFA\u7ACB 3\u20135 \u6761\u53EF\u68C0\u9A8C\u5B50\u4E3B\u5F20\u3002" }) });
+  }
+  const metric = (label, done, total, color) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 9, color: total > 0 && done === total ? C.ok : color || C.muted, border: `1px solid ${C.divider}`, borderRadius: 8, padding: "0 5px", lineHeight: "16px" }, children: [
+    label,
+    " ",
+    done,
+    "/",
+    total
+  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    Panel,
+    {
+      title: "\u8BBA\u6587\u63A8\u8FDB",
+      extra: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.faint }, children: [
+        "\u5C31\u7EEA ",
+        summary.ready || 0,
+        "/",
+        summary.total || rows.length,
+        " \xB7 \u53D7\u963B ",
+        summary.blocked || 0
+      ] }),
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onSelect(null), style: { fontSize: 10, border: `1px solid ${selectedId ? C.border : C.accent}`, background: selectedId ? "transparent" : C.chip, color: selectedId ? C.muted : C.accent, borderRadius: 8, padding: "2px 8px", cursor: "pointer" }, children: allLabel }),
+          rows.map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onSelect(selectedId === r.id ? null : r.id), style: { fontSize: 10, border: `1px solid ${selectedId === r.id ? C.accent : C.border}`, background: selectedId === r.id ? C.chip : "transparent", color: selectedId === r.id ? C.accent : C.muted, borderRadius: 8, padding: "2px 8px", cursor: "pointer" }, children: r.id }, r.id))
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(245px, 1fr))", gap: 6 }, children: rows.map((r) => {
+          const active = selectedId === r.id;
+          const taskProblem = (r.tasks.blocked || 0) > 0 || (r.tasks.failed || 0) > 0;
+          const reviewColor = r.review && r.review.severity === "pass" ? C.ok : r.review && r.review.severity === "fail" ? C.err : r.review && r.review.severity === "warn" ? C.warn : C.faint;
+          return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "button",
+            {
+              type: "button",
+              "data-paper-progress-row": r.id,
+              onClick: () => onSelect(active ? null : r.id),
+              style: { textAlign: "left", border: `1px solid ${active ? C.accent : taskProblem ? C.err : C.border}`, borderRadius: 8, padding: "7px 8px", background: active ? C.chip : C.card, color: C.fg, cursor: "pointer" },
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 11, color: C.accent }, children: r.id }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 11, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: r.title }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { marginLeft: "auto", fontSize: 9, color: r.confirmed ? C.ok : C.warn }, children: r.confirmed ? "\u{1F512} \u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4" })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }, children: [
+                  metric("\u4EFB\u52A1", r.tasks.completed, r.tasks.total, taskProblem ? C.err : C.accent),
+                  metric("\u6587\u732E", r.references.verified, r.references.total, C.warn),
+                  metric("\u56FE\u4EF6", r.figures.approved, r.figures.total, C.warn),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 9, color: reviewColor, border: `1px solid ${reviewColor}`, borderRadius: 8, padding: "0 5px", lineHeight: "16px" }, children: [
+                    "\u5BA1\u67E5 ",
+                    r.review && r.review.severity ? r.review.severity : "none"
+                  ] })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: taskProblem ? C.err : C.muted, lineHeight: 1.45, marginTop: 5 }, children: [
+                  "\u4E0B\u4E00\u6B65\uFF1A",
+                  r.nextAction,
+                  r.owner ? ` \xB7 \u8D23\u4EFB\u6210\u5458 ${r.owner}` : ""
+                ] })
+              ]
+            },
+            r.id
+          );
+        }) })
+      ]
+    }
+  );
+}
+function tasksForResult(tasks, resultId) {
+  if (!resultId) return tasks;
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const keep = new Set(tasks.filter((t) => t.resultId === resultId).map((t) => t.id));
+  const queue = [...keep];
+  while (queue.length > 0) {
+    const t = byId.get(queue.shift());
+    for (const dep of t && t.blockedBy || []) {
+      if (!keep.has(dep) && byId.has(dep)) {
+        keep.add(dep);
+        queue.push(dep);
+      }
+    }
+  }
+  return tasks.filter((t) => keep.has(t.id));
+}
 function mascotForMember(name, members, roles) {
   const m = (members || []).find((x) => x && x.name === name);
   if (!m) return null;
@@ -562,7 +736,7 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
       "data-member-strip": "",
       style: { borderBottom: `1px solid ${C.divider}`, marginBottom: 8 },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px 2px", padding: "2px 0 8px" }, children: members.map((m) => {
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 6, padding: "2px 0 8px" }, children: members.map((m) => {
           const meta = roleMetaOf(m);
           const mascot = meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null;
           const live = memberLive && memberLive[m.name] || "offline";
@@ -570,6 +744,7 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
           const running = live === "running" || live === "claimed/working";
           const pose = running ? "working" : owned.length > 0 ? "thinking" : "idle";
           const offline = live === "offline";
+          const current = owned.find((t) => t.status === "in_progress") || owned.find((t) => t.status === "claimed") || owned[0] || null;
           const poseLabel = pose === "working" ? "\u6B63\u5728\u6267\u884C" : pose === "thinking" ? "\u9886\u4E86\u4EFB\u52A1\u5F85\u5F00\u5DE5" : "\u6682\u65E0\u5728\u529E";
           const isExp = expandedMember === m.name;
           return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -586,94 +761,85 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
               } : void 0,
               title: `${m.name} \xB7 ${meta.label || m.label || ""} \xB7 ${LIVE_LABEL[live] || live} \xB7 ${poseLabel}\uFF08\u5728\u529E ${owned.length}\uFF09${openable ? " \xB7 \u70B9\u51FB\u5934\u50CF\u6253\u5F00\u4F1A\u8BDD" : ""}`,
               style: {
-                width: 66,
+                minWidth: 0,
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                gap: 1,
-                padding: "3px 2px",
+                gap: 3,
+                padding: "6px 7px",
                 borderRadius: 8,
+                border: `1px solid ${running ? C.accent : C.divider}`,
+                background: C.card,
                 cursor: openable ? "pointer" : "default"
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                  "span",
-                  {
-                    style: {
-                      position: "relative",
-                      display: "inline-flex",
-                      filter: offline ? "grayscale(1)" : "none",
-                      opacity: offline ? 0.55 : 1,
-                      animation: running ? "dsh-sci-bob 1.4s ease-in-out infinite" : void 0
-                    },
-                    children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                        MascotAvatar,
-                        {
-                          file: mascot,
-                          emoji: meta.icon,
-                          size: 40,
-                          overlay: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActionOverlay, { file: pose === "working" ? "working.svg" : pose === "thinking" ? "thinking.svg" : null, avatarSize: 40 })
-                        }
-                      ),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                        "span",
-                        {
-                          style: {
-                            position: "absolute",
-                            right: -1,
-                            top: -1,
-                            width: 9,
-                            height: 9,
-                            borderRadius: "50%",
-                            background: LIVE_COLOR[live] || C.faint,
-                            border: "1.5px solid rgba(127,127,127,0.2)",
-                            animation: running ? "dsh-sci-pulse 1.6s ease-in-out infinite" : void 0
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, minWidth: 0 }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                    "span",
+                    {
+                      style: {
+                        position: "relative",
+                        display: "inline-flex",
+                        flexShrink: 0,
+                        opacity: offline ? 0.72 : 1,
+                        animation: running ? "dsh-sci-bob 1.8s ease-in-out infinite" : void 0
+                      },
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                          MascotAvatar,
+                          {
+                            file: mascot,
+                            emoji: meta.icon,
+                            size: 34,
+                            overlay: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActionOverlay, { file: pose === "working" ? "working.svg" : pose === "thinking" ? "thinking.svg" : null, avatarSize: 34 })
                           }
-                        }
-                      )
-                    ]
+                        ),
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                          "span",
+                          {
+                            style: {
+                              position: "absolute",
+                              right: -1,
+                              top: -1,
+                              width: 9,
+                              height: 9,
+                              borderRadius: "50%",
+                              background: LIVE_COLOR[live] || C.faint,
+                              border: `2px solid ${C.card}`,
+                              animation: running ? "dsh-sci-pulse 1.6s ease-in-out infinite" : void 0
+                            }
+                          }
+                        )
+                      ]
+                    }
+                  ),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { minWidth: 0, flex: 1 }, children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { display: "block", fontSize: 11, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: m.name }),
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: 9, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: meta.label || m.label || m.role || "", children: meta.label || m.label || m.role || "" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { "data-member-state": "", style: { display: "block", fontSize: 9, color: LIVE_COLOR[live] || C.faint, lineHeight: "12px" }, title: `${LIVE_LABEL[live] || live} \xB7 ${poseLabel}`, children: LIVE_LABEL[live] || live })
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { title: `\u5728\u529E\u4EFB\u52A1 ${owned.length} \u4E2A`, style: { minWidth: 18, textAlign: "center", padding: "0 4px", borderRadius: 8, fontSize: 9, lineHeight: "16px", color: owned.length > 0 ? "#fff" : C.muted, background: owned.length > 0 ? running ? C.ok : C.accent : C.chip }, children: owned.length })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "div",
+                  {
+                    "data-member-current-task": "",
+                    title: current ? `${current.id} \xB7 ${current.subject || ""}${current.resultId ? ` \xB7 ${current.resultId}` : ""}` : "\u6682\u65E0\u5F53\u524D\u4EFB\u52A1",
+                    style: { minHeight: 28, fontSize: 9, color: current ? C.fg : C.faint, lineHeight: "13px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" },
+                    children: current ? `${current.resultId ? `${current.resultId} \xB7 ` : ""}${current.subject || current.id}` : "\u6682\u65E0\u5F53\u524D\u4EFB\u52A1"
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 10, color: C.fg, maxWidth: 62, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }, children: m.name }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.muted, maxWidth: 62, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "center" }, title: meta.label || m.label || m.role || "", children: meta.label || m.label || m.role || "" }),
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "span",
+                  "button",
                   {
-                    "data-member-state": "",
-                    style: { fontSize: 9, color: LIVE_COLOR[live] || C.faint, lineHeight: "12px" },
-                    title: `${LIVE_LABEL[live] || live} \xB7 ${poseLabel}`,
-                    children: LIVE_LABEL[live] || live
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "span",
-                  {
-                    title: `\u5728\u529E\u4EFB\u52A1 ${owned.length} \u4E2A`,
-                    style: {
-                      minWidth: 16,
-                      textAlign: "center",
-                      padding: "0 4px",
-                      borderRadius: 8,
-                      fontSize: 9,
-                      lineHeight: "14px",
-                      color: owned.length > 0 ? "#fff" : C.muted,
-                      background: owned.length > 0 ? running ? C.ok : C.accent : C.chip
-                    },
-                    children: owned.length
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "span",
-                  {
+                    type: "button",
                     "data-member-expand": isExp ? "open" : "closed",
                     onClick: (e) => {
                       e.stopPropagation();
                       setExpandedMember(isExp ? null : m.name);
                     },
                     title: isExp ? `\u6536\u8D77 ${m.name} \u7684\u4EFB\u52A1\u5217\u8868` : `\u5C55\u5F00 ${m.name} \u7684\u4EFB\u52A1\u5217\u8868\uFF08${tasks.filter((t) => t.assignee === m.name).length}\uFF09`,
-                    style: { fontSize: 9, color: isExp ? C.accent : C.faint, cursor: "pointer", lineHeight: "12px", padding: "0 6px" },
-                    children: isExp ? "\u25B4" : "\u25BE"
+                    style: { fontSize: 9, color: isExp ? C.accent : C.muted, cursor: "pointer", lineHeight: "14px", padding: "0 6px", border: 0, background: "transparent", textAlign: "right" },
+                    children: isExp ? "\u6536\u8D77 \u25B4" : "\u4EFB\u52A1 \u25BE"
                   }
                 )
               ]
@@ -1211,11 +1377,19 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                 "data-dag-focus": isFocus ? "true" : void 0,
                 "data-dag-dimmed": dimmed ? "true" : void 0,
                 onClick: () => setSel(isSel ? null : t.id),
+                onKeyDown: (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSel(isSel ? null : t.id);
+                  }
+                },
                 onMouseEnter: () => setHoverId(t.id),
                 onMouseLeave: () => setHoverId((cur) => cur === t.id ? null : cur),
                 onFocus: () => setHoverId(t.id),
                 onBlur: () => setHoverId((cur) => cur === t.id ? null : cur),
                 tabIndex: 0,
+                role: "button",
+                "aria-pressed": isSel,
                 title: `${t.id} \xB7 ${t.subject || ""} \xB7 ${t.assignee || "\u5F85\u9886"} \xB7 \u60AC\u505C\u9AD8\u4EAE\u4F9D\u8D56\u94FE\uFF0C\u70B9\u51FB${isSel ? "\u6536\u8D77" : "\u5C55\u5F00"}\u8BE6\u60C5`,
                 style: {
                   position: "absolute",
@@ -1472,7 +1646,7 @@ function CaptainInbox({ tasks, members, roles }) {
   if (reports.length === 0) {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "6px 4px 2px" }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 36, style: { display: "inline-flex" } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6536\u4EF6\u7BB1\u7A7A\u3002\u6210\u5458\u5B8C\u6210\u4EFB\u52A1\u5E76\u56DE\u62A5\u540E\uFF0C\u961F\u957F\u7528 sci_team_update_task \u8BB0\u5F55 result_note\uFF0C\u56DE\u62A5\u6458\u8981\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC\u3002" })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u4EFB\u52A1\u56DE\u62A5\u3002\u6210\u5458\u5B8C\u6210\u4EFB\u52A1\u540E\uFF0C\u961F\u957F\u7528 sci_team_update_task \u8BB0\u5F55 result_note\uFF1B\u6458\u8981\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC\u3002\u8FD9\u91CC\u4E0D\u662F\u6210\u5458\u804A\u5929\u8BB0\u5F55\u3002" })
     ] });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-captain-inbox": "", children: reports.map((t) => {
@@ -1552,6 +1726,7 @@ var ROLE_LABEL_FALLBACK = {
 function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
   const catalog = skillMenu && skillMenu.catalog || {};
   const installed = skillMenu && skillMenu.installed || {};
+  const integrations = skillMenu && Array.isArray(skillMenu.integrations) ? skillMenu.integrations : [];
   const [busyRole, setBusyRole] = (0, import_react.useState)(null);
   const [customUrl, setCustomUrl] = (0, import_react.useState)({});
   const roleEntries = Object.entries(roles || {}).filter(([id]) => catalog[id]);
@@ -1580,13 +1755,34 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
     }
   };
   const installedOf = (role) => Array.isArray(installed[role]) ? installed[role] : [];
-  if (roleEntries.length === 0) return null;
+  if (roleEntries.length === 0 && integrations.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     Panel,
     {
       title: "\u89D2\u8272\u6280\u80FD\u5E93",
-      extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6BCF\u89D2\u8272 \u22643 \u7CBE\u9009\u4ED3\u5E93 \xB7 \u52FE\u9009\u5373\u5B89\u88C5\uFF08\u4EC5\u672C\u63D2\u4EF6\u5BF9\u5E94\u89D2\u8272\u53EF\u7528\uFF09" }),
+      extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6BCF\u89D2\u8272 \u22643 \u7CBE\u9009\u4ED3\u5E93 \xB7 \u6309\u89D2\u8272\u7D22\u5F15\u63A7\u5236\u9ED8\u8BA4\u53EF\u53D1\u73B0\u8303\u56F4\uFF08\u975E\u6587\u4EF6 ACL\uFF09" }),
       children: [
+        integrations.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "div",
+          {
+            "data-optional-integration": item.id,
+            style: { border: `1px solid ${C.accent}`, borderRadius: 8, padding: "7px 9px", marginBottom: 8, background: C.chip },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 12, color: C.fg }, children: item.name }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.accent, border: `1px solid ${C.accent}`, borderRadius: 8, padding: "0 5px" }, children: "\u53EF\u9009\u72EC\u7ACB\u63D2\u4EF6" }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.faint }, children: item.license })
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.muted, lineHeight: 1.5, marginTop: 3 }, children: item.description }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginTop: 5, fontSize: 10, color: C.faint }, children: [
+                "\u5B89\u88C5\u547D\u4EE4\uFF1A",
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: item.installCommand }),
+                item.repo && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", { href: item.repo, target: "_blank", rel: "noreferrer", style: { color: C.accent }, children: "\u67E5\u770B\u4ED3\u5E93 \u2197" })
+              ] })
+            ]
+          },
+          item.id
+        )),
         roleEntries.map(([role, meta]) => {
           const inst = installedOf(role);
           const byCatalogId = (id) => inst.find((x) => x.catalogId === id || x.name === id);
@@ -1715,6 +1911,7 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
 }
 function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, onClearFocusTask, refresh }) {
   const [view, setView] = (0, import_react.useState)("dag");
+  const [resultFilter, setResultFilter] = (0, import_react.useState)(null);
   const [toast, setToast] = (0, import_react.useState)(null);
   const toastTimer = (0, import_react.useRef)(null);
   const notify = (msg) => {
@@ -1728,6 +1925,7 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
   const team = data.team || { members: [], tasks: [] };
   const members = Array.isArray(team.members) ? team.members.filter((m) => m && typeof m.name === "string") : [];
   const tasks = normalizeTaskBoard(team.tasks);
+  const visibleTasks = (0, import_react.useMemo)(() => tasksForResult(tasks, resultFilter), [tasks, resultFilter]);
   const onOpenMember = (m) => {
     try {
       if (typeof openMemberSession !== "function") throw new Error("\u6210\u5458\u4F1A\u8BDD\u8DF3\u8F6C\u4E0D\u53EF\u7528");
@@ -1738,6 +1936,7 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
   };
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ProgressOverview, { tasks }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperProgressOverview, { progress: data.blueprint && data.blueprint.paperProgress, selectedId: resultFilter, onSelect: setResultFilter }),
     members.length === 0 ? (
       // 空队伍：lead 鲸鱼娘 + 一键建队引导（原花名册空态）
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u56E2\u961F\uFF080\uFF09", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "10px 6px 6px" }, children: [
@@ -1747,7 +1946,7 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
     ) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       Panel,
       {
-        title: `\u4EFB\u52A1\u6D41 DAG\uFF08${tasks.length}\uFF09`,
+        title: `\u4EFB\u52A1\u6D41 DAG\uFF08${visibleTasks.length}${resultFilter ? ` \xB7 ${resultFilter}` : ""}\uFF09`,
         extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
           ViewToggle,
           {
@@ -1774,17 +1973,17 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
           view === "dag" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             TaskDag,
             {
-              tasks,
+              tasks: visibleTasks,
               members,
               roles: data.roles,
               focusTaskId,
               onClearFocus: onClearFocusTask
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskBoard, { tasks, focusTaskId, onClearFocus: onClearFocusTask })
+          ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskBoard, { tasks: visibleTasks, focusTaskId, onClearFocus: onClearFocusTask })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u6536\u4EF6\u7BB1", extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6210\u5458\u56DE\u62A5\u6458\u8981\uFF08\u6700\u8FD1 8 \u6761\uFF09" }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CaptainInbox, { tasks, members, roles: data.roles }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u4EFB\u52A1\u56DE\u62A5\u53F0\u8D26", extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "result_note \u6458\u8981\uFF08\u6700\u8FD1 8 \u6761\uFF09" }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CaptainInbox, { tasks, members, roles: data.roles }) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SkillMenuSection, { skillMenu: data.skillMenu, roles: data.roles, notify, refresh }),
     toast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "div",
@@ -2091,7 +2290,7 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
                   children: [
                     ref.verified ? "\u2713" : "\u26A0",
                     " ",
-                    ref.doi ? `doi:${ref.doi}` : ref.title || "\uFF08\u65E0\u6807\u9898\uFF09"
+                    ref.title || (ref.doi ? `doi:${ref.doi}` : "\uFF08\u65E0\u6807\u9898\uFF09")
                   ]
                 },
                 `${ref.doi || ref.title}:${i}`
@@ -2100,7 +2299,11 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6DFB\u52A0\u6587\u732E\uFF1A" }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=method` }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=evidence` })
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=concept` }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=background` }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=evidence` }),
+              refs.some((x) => x && x.doi) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_verify result_id=${r.id} ref_doi=<DOI> used_as=<\u7528\u9014>` }),
+              refs.some((x) => x && x.doi) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_remove result_id=${r.id} ref_doi=<DOI> used_as=<\u7528\u9014>` })
             ] })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
@@ -2127,8 +2330,8 @@ function ResultsList({ results, tasksById, onOpenTask, onOpenFigure, reviewById 
 var FG_PAD = 12;
 var FG_CORE_W = 240;
 var FG_CORE_H = 64;
-var FG_RES_W = 190;
-var FG_RES_H = 62;
+var FG_RES_W = 210;
+var FG_RES_H = 88;
 var FG_LEAF_W = 168;
 var FG_LEAF_H = 24;
 var FG_RES_GAP = 34;
@@ -2253,6 +2456,7 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
     const status = r.status || "planned";
     const tasks = [...resultTaskIdsOf(r, tasksById)];
     const figures = Array.isArray(r.figures) ? r.figures : [];
+    const progress = bp.paperProgress && Array.isArray(bp.paperProgress.results) ? bp.paperProgress.results.find((x) => x.id === r.id) : null;
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": r.id, style: { border: `1px solid ${C.divider}`, borderRadius: 8, padding: "6px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.faint }, children: [
@@ -2272,6 +2476,37 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
       r.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, color: C.fg }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.accent }, children: "\u4E3B\u5F20\uFF1A" }),
         r.claim
+      ] }),
+      progress && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-result-progress": r.id, style: { marginTop: 5, padding: "5px 7px", border: `1px solid ${C.divider}`, borderRadius: 7, background: C.card }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", fontSize: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+            "\u4EFB\u52A1 ",
+            progress.tasks.completed,
+            "/",
+            progress.tasks.total
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+            "\u6587\u732E ",
+            progress.references.verified,
+            "/",
+            progress.references.total
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+            "\u56FE\u4EF6\u7EC8\u5BA1 ",
+            progress.figures.approved,
+            "/",
+            progress.figures.total
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: progress.review.severity === "pass" ? C.ok : progress.review.severity === "fail" ? C.err : C.warn }, children: [
+            "\u5BA1\u67E5 ",
+            progress.review.severity
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, color: progress.tasks.blocked > 0 || progress.tasks.failed > 0 ? C.err : C.muted }, children: [
+          "\u4E0B\u4E00\u6B65\uFF1A",
+          progress.nextAction,
+          progress.owner ? ` \xB7 ${progress.owner}` : ""
+        ] })
       ] }),
       tasks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flexShrink: 0 }, children: "\u652F\u6491\u4EFB\u52A1\uFF1A" }),
@@ -2358,8 +2593,12 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
     " \u672A\u767B\u8BB0\uFF08\u6216\u5DF2\u6E05\u7406\uFF09\u3002"
   ] });
   const inside = pathInsideWorkspace(f.path, workspaceRoot);
+  const previewable = inside && figurePreviewable(f.path);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": f.id, style: { border: `1px solid ${C.divider}`, borderRadius: 8, padding: "6px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color: C.fg, fontWeight: 700 }, children: f.title }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color: C.fg, fontWeight: 700 }, children: f.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditBadge, { figure: f })
+    ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 2 }, children: [
       f.id,
       " \xB7 ",
@@ -2369,7 +2608,7 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
       " \xB7 ",
       fmtTime(f.registeredAt)
     ] }),
-    inside && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "img",
       {
         src: `/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`,
@@ -2377,10 +2616,29 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
         style: { display: "block", maxWidth: "100%", maxHeight: 180, marginTop: 6, borderRadius: 6, border: `1px solid ${C.divider}` }
       }
     ),
-    !inside && f.path && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: f.path, children: f.path })
+    inside && !previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+      "button",
+      {
+        type: "button",
+        onClick: () => {
+          try {
+            window.open(`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`, "_blank");
+          } catch {
+          }
+        },
+        style: { marginTop: 5, fontSize: 10, cursor: "pointer" },
+        children: [
+          "\u6253\u5F00 ",
+          String(f.path).split(".").pop().toUpperCase(),
+          " \u6295\u7A3F\u6587\u4EF6"
+        ]
+      }
+    ),
+    !inside && f.path && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: f.path, children: f.path }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditDetails, { figure: f })
   ] });
 }
-function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onOpenFigure }) {
+function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onOpenFigure, focusResultId }) {
   const [sel, setSel] = (0, import_react.useState)(null);
   const layout = (0, import_react.useMemo)(() => frameworkLayout(bp || {}, tasksById, figById), [bp, tasksById, figById]);
   const viewportRef = (0, import_react.useRef)(null);
@@ -2390,6 +2648,18 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
     const target = (layout.canvasW - vp.clientWidth) / 2;
     if (target > 0) vp.scrollLeft = target;
   }, [layout.canvasW]);
+  (0, import_react.useEffect)(() => {
+    if (!focusResultId) return;
+    setSel({ kind: "result", id: focusResultId });
+    const timer = setTimeout(() => {
+      try {
+        const el = document.querySelector(`[data-framework-node="${focusResultId}"]`);
+        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      } catch {
+      }
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [focusResultId]);
   if (layout.resultCount === 0 && !(bp && bp.core && (bp.core.title || bp.core.claim))) {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709\u6587\u7AE0\u6846\u67B6\u3002\u8BA9\u961F\u957F\u7528 sci_blueprint_set \u786E\u7ACB\u6838\u5FC3\u3001sci_result_add \u6DFB\u52A0 Results\uFF0C\u8FD9\u91CC\u4F1A\u957F\u51FA\u6846\u67B6\u56FE\u3002" });
   }
@@ -2477,6 +2747,7 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
             const rc = RESULT_STATUS_COLOR[status] || C.faint;
             const isSel = sel && sel.kind === "result" && sel.id === r.id;
             const figCount = Array.isArray(r.figures) ? r.figures.length : 0;
+            const p = bp.paperProgress && Array.isArray(bp.paperProgress.results) ? bp.paperProgress.results.find((x2) => x2.id === r.id) : null;
             return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
               "div",
               {
@@ -2526,7 +2797,30 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
                       },
                       children: r.title || r.id
                     }
-                  )
+                  ),
+                  p && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-progress": r.id, style: { marginTop: 4 }, children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, fontSize: 8, color: C.muted }, children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: p.tasks.total > 0 && p.tasks.completed === p.tasks.total ? C.ok : C.muted }, children: [
+                        "\u4EFB\u52A1 ",
+                        p.tasks.completed,
+                        "/",
+                        p.tasks.total
+                      ] }),
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: p.references.total > 0 && p.references.verified === p.references.total ? C.ok : C.muted }, children: [
+                        "\u6587\u732E ",
+                        p.references.verified,
+                        "/",
+                        p.references.total
+                      ] }),
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: p.figures.total > 0 && p.figures.approved === p.figures.total ? C.ok : C.muted }, children: [
+                        "\u56FE ",
+                        p.figures.approved,
+                        "/",
+                        p.figures.total
+                      ] })
+                    ] }),
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: 4, borderRadius: 3, background: C.chip, overflow: "hidden", marginTop: 4 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", height: "100%", width: `${p.tasks.total > 0 ? Math.round(100 * p.tasks.completed / p.tasks.total) : 0}%`, background: p.tasks.blocked > 0 || p.tasks.failed > 0 ? C.err : C.accent } }) })
+                  ] })
                 ]
               },
               r.id
@@ -2775,6 +3069,7 @@ function ReviewCoverageSection({ rc }) {
 }
 function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
   const [view, setView] = (0, import_react.useState)("graph");
+  const [focusResultId, setFocusResultId] = (0, import_react.useState)(null);
   const bp = data && data.blueprint || {};
   const core = bp.core || {};
   const results = Array.isArray(bp.results) ? bp.results : [];
@@ -2810,6 +3105,7 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
         ]
       }
     ),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperProgressOverview, { progress: bp.paperProgress, selectedId: focusResultId, onSelect: setFocusResultId, allLabel: "\u5168\u90E8 Result" }),
     view === "graph" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       Panel,
       {
@@ -2833,7 +3129,8 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
             figById,
             workspaceRoot: data.workspaceRoot,
             onOpenTask,
-            onOpenFigure
+            onOpenFigure,
+            focusResultId
           }
         )
       }
@@ -2899,6 +3196,7 @@ function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus })
   };
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: figures.map((f) => {
     const inside = pathInsideWorkspace(f.path, workspaceRoot);
+    const previewable = inside && figurePreviewable(f.path);
     const prev = f.prevId ? figures.find((x) => x && x.id === f.prevId) : null;
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
@@ -2950,7 +3248,8 @@ function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus })
                   (f.version || 1) - 1
                 ]
               }
-            )
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditBadge, { figure: f })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.muted, margin: "2px 0" }, children: [
             f.id,
@@ -2965,7 +3264,13 @@ function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus })
             "code: ",
             f.codePath
           ] }),
-          inside && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          (f.planId || Array.isArray(f.sourceDataPaths) && f.sourceDataPaths.length > 0) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint }, children: [
+            f.planId ? `\u8BA1\u5212 ${f.planId}` : "\u65E0\u56FE\u4EF6\u8BA1\u5212",
+            " \xB7 \u6E90\u6570\u636E ",
+            Array.isArray(f.sourceDataPaths) ? f.sourceDataPaths.length : 0,
+            " \u4E2A"
+          ] }),
+          previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             "img",
             {
               src: `/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`,
@@ -2973,11 +3278,52 @@ function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus })
               style: { display: "block", maxWidth: "100%", maxHeight: 180, marginTop: 6, borderRadius: 6, border: `1px solid ${C.divider}` }
             }
           ),
-          !inside && f.path && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: f.path, children: f.path })
+          inside && !previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 6, padding: "10px 8px", border: `1px dashed ${C.border}`, borderRadius: 6, textAlign: "center", fontSize: 10, color: C.muted }, children: [
+            String(f.path).split(".").pop().toUpperCase(),
+            " \u6587\u4EF6\u4E0D\u5728\u5361\u7247\u5185\u6E32\u67D3\uFF1B\u70B9\u51FB\u5361\u7247\u6253\u5F00\u539F\u6587\u4EF6\u3002"
+          ] }),
+          !inside && f.path && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: f.path, children: f.path }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditDetails, { figure: f })
         ]
       },
       f.id
     );
+  }) });
+}
+function FigurePlansSection({ plans }) {
+  const rows = Array.isArray(plans) ? [...plans].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)) : [];
+  if (rows.length === 0) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709\u56FE\u4EF6\u8BA1\u5212\u3002\u7ED8\u56FE\u524D\u5148\u8BF4\u660E\u4E3B\u5F20\u3001\u76EE\u6807\u671F\u520A\u3001\u6700\u7EC8\u5C3A\u5BF8\u3001\u6E90\u6570\u636E\u548C\u7EDF\u8BA1\u8981\u6C42\uFF0C\u540E\u7EED\u524D\u68C0\u624D\u6709\u660E\u786E\u4F9D\u636E\u3002" });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: rows.map((plan) => {
+    const linked = !!plan.figureId;
+    const status = linked ? FIGURE_AUDIT_LABEL[plan.status] || (plan.status === "registered" ? "\u5DF2\u767B\u8BB0\xB7\u5F85\u524D\u68C0" : plan.status === "superseded" ? "\u5DF2\u88AB\u65B0\u8BA1\u5212\u53D6\u4EE3" : plan.status) : "\u5F85\u7ED8\u5236";
+    const color = linked ? FIGURE_AUDIT_COLOR[plan.status] || (plan.status === "superseded" ? C.faint : C.accent) : C.warn;
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-figure-plan": plan.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 9px", marginBottom: 6, background: C.card }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
+        plan.resultId && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResBadge, { id: plan.resultId }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 12, color: C.fg, flex: 1 }, children: plan.title || plan.id }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px" }, children: status })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, fontSize: 10, color: C.muted }, children: [
+        plan.targetJournalName || plan.targetJournal || "\u901A\u7528\u79D1\u7814\u56FE\u4EF6",
+        " \xB7 \u6700\u7EC8\u5BBD\u5EA6 ",
+        plan.targetWidthMm || "?",
+        " mm \xB7 ",
+        plan.figureRole || "main",
+        " \xB7 \u6E90\u6570\u636E ",
+        Array.isArray(plan.sourceDataPaths) ? plan.sourceDataPaths.length : 0,
+        " \u4E2A"
+      ] }),
+      plan.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, fontSize: 10, color: C.fg }, children: [
+        "\u4E3B\u5F20\uFF1A",
+        plan.claim
+      ] }),
+      !linked && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", fontSize: 10, color: C.muted }, children: [
+        "\u7ED8\u56FE\u5B8C\u6210\u540E\u7ED1\u5B9A\u8BA1\u5212\uFF1A ",
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_figure_register plan_id=${plan.id} path=...` })
+      ] })
+    ] }, plan.id);
   }) });
 }
 function FilesSection({ files, workspaceRoot }) {
@@ -3241,9 +3587,11 @@ function ReviewsSection({ reviews }) {
 }
 function ArtifactsTab({ data, focusFigureId, onClearFocusFigure }) {
   const figs = Array.isArray(data.figures) ? data.figures : [];
+  const figurePlans = Array.isArray(data.figurePlans) ? data.figurePlans : [];
   const files = Array.isArray(data.files) ? data.files : [];
   const reviews = Array.isArray(data.reviews) ? data.reviews : [];
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u56FE\u4EF6\u8BA1\u5212\uFF08${figurePlans.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigurePlansSection, { plans: figurePlans }) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u56FE\u8868\uFF08${figs.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FiguresSection, { figures: figs, workspaceRoot: data.workspaceRoot, focusFigureId, onClearFocus: onClearFocusFigure }) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u6587\u4EF6\uFF08${files.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FilesSection, { files, workspaceRoot: data.workspaceRoot }) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RemoteSection, { sshHosts: data.sshHosts, sshJobs: data.sshJobs }),
@@ -3398,7 +3746,7 @@ function apply(ctx) {
                 id: "workbench",
                 order: 10,
                 title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
-                description: () => "\u4EFB\u52A1\u6D41 DAG\uFF08\u6210\u5458\u59FF\u6001/\u4F9D\u8D56\u8DF3\u8F6C/\u6536\u4EF6\u7BB1\uFF09\xB7 \u6587\u7AE0\u6846\u67B6\uFF08\u786E\u8BA4/\u53C2\u8003\u6587\u732E/\u5FEB\u7B5B\uFF09\xB7 \u4EA7\u7269\uFF08\u56FE\u8868\u7248\u672C\u94FE/\u6587\u4EF6/\u8FDC\u7A0B/\u5BA1\u67E5\uFF09\uFF08dsh-science\uFF09"
+                description: () => "\u4EFB\u52A1\u6D41 DAG\uFF08\u6210\u5458\u59FF\u6001/\u4F9D\u8D56\u8DF3\u8F6C/\u4EFB\u52A1\u56DE\u62A5\u53F0\u8D26\uFF09\xB7 \u6587\u7AE0\u6846\u67B6\uFF08\u786E\u8BA4/\u53C2\u8003\u6587\u732E/\u5FEB\u7B5B\uFF09\xB7 \u4EA7\u7269\uFF08\u56FE\u8868\u7248\u672C\u94FE/\u6587\u4EF6/\u8FDC\u7A0B/\u5BA1\u67E5\uFF09\uFF08dsh-science\uFF09"
               }
             ]
           });

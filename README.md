@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![dsh-plugin](https://img.shields.io/badge/dsh-plugin-1B6EC2)](https://github.com/topics/dsh-plugin)
-[![Version](https://img.shields.io/badge/version-0.7.1-blue)](package.json)
+[![Version](https://img.shields.io/badge/version-0.13.0-blue)](package.json)
 
 English | [中文](#中文说明)
 
@@ -12,11 +12,11 @@ English | [中文](#中文说明)
 
 Turn a DeepSeek Harness session into a **science team captain** backed by 9 specialist agents (literature scout, topic designer, data analyst, simulator, model trainer, figure expert, writer, reviewer, presentation expert). The captain dispatches all research work to members, tracks it on a shared task board, and defaults to dispatching a reviewer after every execution task. Everything revolves around a **Paper Blueprint**: a core claim supported by 3–5 Results, each backed by tasks and figures — negative results trigger blueprint reassessment (adjust or falsify).
 
-- **任务流 DAG**（团队 tab）：成员鲸鱼娘吉祥物按动作姿态展示（working/thinking/离线灰度），任务节点按状态分列、依赖箭头相连、点击看详情
-- **文章框架 tab**：核心 → Results → 任务/图表 的框架图 + 列表视图，五态状态流转，负面结果证伪风险提示
-- **产物 tab**：登记图表预览、工作区文件树、SSH 主机与作业、审查记录
+- **任务流 DAG**（团队 tab）：成员科研小队卡展示在线状态、当前任务与角色；任务按状态分列、依赖相连，并可按 Result 聚焦
+- **文章框架 tab**：核心 → Results → 任务/图表框架图 + 列表视图；每个 Result 显示真实任务、DOI 核对、图件终审、主张审查和下一步
+- **产物 tab**：图件计划、PDF/SVG/位图登记、期刊投稿前检与人工终审状态，以及文件、SSH 作业和审查记录
 - **工具链**：SQLite/PostgreSQL/MySQL 只读优先查询（写操作审批）、SSH 远程作业引擎（Slurm/直发、收割、诊断）、科学绘图规范（Python/R 出版级）、文献检索与 DOI 核验、通用模拟工具上手规范（8 步）与 5 个内置工具档案
-- **角色技能库**：每角色 ≤3 个精选开源 skill 仓库，勾选即装、仅本插件对应角色可用（严格隔离），支持自定义仓库链接
+- **角色技能库**：每角色 ≤3 个精选开源 skill 仓库，按角色提示词和独立索引控制发现范围；另提供 Scientific Figure Library 的独立可选插件入口，不混入角色技能克隆目录
 - **安全**：文件路由防路径穿越、写操作与远程操作审批、凭据不进模型上下文
 
 ## Install
@@ -43,8 +43,9 @@ dsh plugin --profile web add SPYfighting/deepseek-science
 
 1. 打开右栏 **科研工作台** → 团队 tab → 勾选生成你的团队（或让队长 `sci_team_spawn_all`）
 2. 对队长说你的科研目标（如"分析 demo.db 的差异表达基因并写摘要"）——队长会建蓝图、拆 Results、派任务给成员
-3. **文章框架** tab 实时展示 核心→Results→任务 的对齐与覆盖状态
-4. 任意时刻 `/sci-review` 审查最近一轮工作（数字溯源/图文一致/伪造检测）
+3. 队长先复述蓝图；核心与 Result 未经用户确认时，执行任务不能派发。**文章框架** tab 实时展示任务、文献、图件和审查的真实状态
+4. 绘图按 `sci_figure_plan → sci_figure_register → sci_figure_audit → 研究者人工终审` 执行；自动通过不等于期刊保证接收
+5. 任意时刻 `/sci-review` 审查最近一轮工作（数字溯源/图文一致/伪造检测）
 
 ## Configuration
 
@@ -80,13 +81,14 @@ MIT — 见 [LICENSE](LICENSE)。吉祥物与 UI 模式向 [dsh-agent-teams](htt
 
 | 模块 | 说明 |
 |---|---|
-| 团队 DAG | 成员吉祥物动作姿态 + 任务状态三列流 + 依赖箭头 + 点击详情 |
-| 文章框架 | 核心→Results→任务/图表 框架图与列表视图、五态流转、证伪风险提示 |
-| 产物 | 登记图表预览、工作区文件树、SSH 主机与作业、审查记录 |
+| 团队 DAG | 小队状态卡 + 当前任务 + 状态列任务流 + 依赖箭头 + Result 聚焦 |
+| 文章框架 | 核心→Results→任务/图表；真实任务/文献/图件/审查状态与下一步 |
+| 产物 | 图件计划、版本链、投稿前检/人工终审、文件树、SSH 作业与审查记录 |
 | 数据库 | SQLite/PostgreSQL/MySQL，只读守卫 + 写审批 |
 | SSH 远程计算 | 探测/提交/监控/收割，Slurm 与直发双模式，断连安全 |
 | 自动审查 | 数字溯源/断言-执行一致/图文一致/引用卫生/伪造检测，fail 自动要求修正 |
-| 角色技能库 | 每角色 ≤3 精选开源 skill 仓库，勾选安装，角色间严格隔离 |
+| 角色技能库 | 每角色 ≤3 精选开源 skill 仓库；按角色索引隔离“默认可发现性”，不宣称文件系统访问控制 |
+| 可选绘图库 | Scientific Figure Library 独立插件入口；按确切版本预览/复制模板，不自动执行第三方代码 |
 | 通用模拟规范 | 新工具 8 步上手协议（版本核验→手册→冒烟→见证→生产→诊断→dossier）|
 
 ### 设计参考（致谢）

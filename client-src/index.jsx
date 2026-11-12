@@ -62,7 +62,7 @@ import { dependencyClosure, normalizeTaskBoard } from '../lib/dag.js'
 
 export const inject = ['sidebarRightTabs', 'slots', 'resources']
 
-const VERSION = '0.11.0'
+const VERSION = '0.13.0'
 const STATE_URL = '/plugins/dsh-science/state'
 const POLL_MS = 3000
 // 模块级运行时标记：成员是否记录了真实父会话（供 apply 层 memberOpenAvailable 判定）
@@ -153,6 +153,24 @@ const SCREENING_COLOR = {
   maybe: C.warn,
 }
 
+// 图件前检状态不是期刊接收结论：自动检查只验证可观察属性，最终仍需研究者人工终审。
+const FIGURE_AUDIT_LABEL = {
+  'not-audited': '未前检',
+  failed: '前检失败',
+  'needs-attention': '需处理',
+  'ready-for-manual-review': '待人工终审',
+  approved: '已人工终审',
+  rejected: '人工退回',
+}
+const FIGURE_AUDIT_COLOR = {
+  'not-audited': C.faint,
+  failed: C.err,
+  'needs-attention': C.warn,
+  'ready-for-manual-review': C.accent,
+  approved: C.ok,
+  rejected: C.err,
+}
+
 // 成员实时状态 → 颜色（memberLive: 'running' | 'idle' | 'claimed/working' | 'offline'；
 // 'claimed/working' = agents 注册表无该成员实时记录，但任务板上有其 claimed/in_progress 任务）
 const LIVE_COLOR = {
@@ -203,6 +221,14 @@ function pathInsideWorkspace(absPath, workspaceRoot) {
   const p = normPath(absPath)
   const root = normPath(workspaceRoot)
   return p === root ? false : p.startsWith(`${root}/`)
+}
+
+function figurePreviewable(path) {
+  return /\.(?:png|jpe?g|gif|webp|svg)$/i.test(String(path || ''))
+}
+
+function figureAuditStatus(figure) {
+  return (figure && figure.audit && figure.audit.overallStatus) || 'not-audited'
 }
 
 // 轮询 host 状态路由。web 档案可用；桌面版 fetch 失败 → error 态（DataGate 降级提示）。
@@ -261,6 +287,7 @@ function DataGate({ state, children, fallback }) {
       return (
         <>
           <Empty>连接数据通道失败（web 档案请确认服务已启动）。</Empty>
+          <div style={{ textAlign: 'center', marginBottom: 8 }}><button onClick={state.refresh}>立即重试</button></div>
           {fallback}
         </>
       )
@@ -275,7 +302,7 @@ function DataGate({ state, children, fallback }) {
   const content = typeof children === 'function' ? children() : children
   return (
     <>
-      {state.error && <p style={{ color: C.faint, fontSize: 10, margin: '0 0 4px' }}>刷新失败（{String(state.error && state.error.message)}），以下为最近缓存。</p>}
+      {state.error && <p style={{ color: C.faint, fontSize: 10, margin: '0 0 4px' }}>刷新失败（{String(state.error && state.error.message)}），以下为最近缓存。 <button onClick={state.refresh}>重试</button></p>}
       {content}
     </>
   )
@@ -432,6 +459,62 @@ function CmdChip({ cmd }) {
   )
 }
 
+function FigureAuditBadge({ figure }) {
+  const status = figureAuditStatus(figure)
+  const color = FIGURE_AUDIT_COLOR[status] || C.faint
+  return (
+    <span
+      data-figure-audit={status}
+      title="自动前检不替代科学正确性与期刊接收判断"
+      style={{ fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: '0 6px', lineHeight: '16px', flexShrink: 0 }}
+    >
+      {FIGURE_AUDIT_LABEL[status] || status}
+    </span>
+  )
+}
+
+function FigureAuditDetails({ figure }) {
+  const audit = figure && figure.audit
+  if (!audit) {
+    return (
+      <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 5, display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', fontSize: 10, color: C.warn }}>
+        尚未执行投稿前检 <CmdChip cmd={`sci_figure_audit figure_id=${figure.id}`} />
+      </div>
+    )
+  }
+  const measurements = audit.measurements || {}
+  const summary = audit.summary || {}
+  const size = measurements.targetWidthMm
+    ? `${measurements.targetWidthMm}${measurements.targetHeightMm ? ` × ${measurements.targetHeightMm}` : ''} mm`
+    : '未声明最终尺寸'
+  const resolution = measurements.kind === 'vector'
+    ? '矢量'
+    : measurements.effectiveDpi ? `${measurements.effectiveDpi} dpi` : 'dpi 未知'
+  return (
+    <details onClick={(e) => e.stopPropagation()} style={{ marginTop: 5, fontSize: 10, color: C.muted }}>
+      <summary style={{ cursor: 'pointer', color: C.fg }}>
+        {audit.profile && audit.profile.label ? audit.profile.label : '通用科研图件'} · {size} · {resolution} · {summary.pass || 0} 通过 / {summary.warn || 0} 提醒 / {summary.fail || 0} 失败
+      </summary>
+      <div style={{ marginTop: 5, borderLeft: `2px solid ${FIGURE_AUDIT_COLOR[audit.overallStatus] || C.border}`, paddingLeft: 7 }}>
+        {(Array.isArray(audit.checks) ? audit.checks : []).map((item) => (
+          <div key={item.id} style={{ margin: '3px 0', color: item.status === 'fail' ? C.err : item.status === 'warn' ? C.warn : item.status === 'pass' ? C.ok : C.muted }}>
+            <b>{item.status === 'pass' ? '✓' : item.status === 'fail' ? '✕' : item.status === 'warn' ? '!' : '人工'} {item.label}</b>
+            <span style={{ color: C.muted }}> · {item.observed}</span>
+            {(item.status === 'fail' || item.status === 'warn') && item.action && <div style={{ color: C.fg, paddingLeft: 12 }}>操作：{item.action}</div>}
+          </div>
+        ))}
+        <div style={{ marginTop: 5, color: C.faint }}>{audit.disclaimer}</div>
+        <div style={{ marginTop: 5, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+          <CmdChip cmd={`sci_figure_audit figure_id=${figure.id}`} />
+          {audit.automaticStatus === 'ready-for-manual-review' && audit.overallStatus !== 'approved' && (
+            <span>最终尺寸核对后，再由研究者提交人工结论。</span>
+          )}
+        </div>
+      </div>
+    </details>
+  )
+}
+
 // 视图切换芯片（v0.7.0）：框架图/列表视图、任务流图/列表视图 共用
 function ViewToggle({ view, graphValue, listValue, graphLabel, listLabel, onChange }) {
   const chip = (active) => ({
@@ -564,6 +647,82 @@ function ProgressOverview({ tasks }) {
   )
 }
 
+// 文章 Result 视角的真实推进度：不合成主观百分比，逐项展示确认、任务、文献、图件和审查。
+function PaperProgressOverview({ progress, selectedId, onSelect, allLabel = '全部任务' }) {
+  const rows = progress && Array.isArray(progress.results) ? progress.results : []
+  const summary = (progress && progress.summary) || {}
+  if (rows.length === 0) {
+    return (
+      <Panel title="论文推进">
+        <Empty>还没有 Result。先与用户确认文章核心并用 sci_result_add 建立 3–5 条可检验子主张。</Empty>
+      </Panel>
+    )
+  }
+  const metric = (label, done, total, color) => (
+    <span style={{ fontSize: 9, color: total > 0 && done === total ? C.ok : color || C.muted, border: `1px solid ${C.divider}`, borderRadius: 8, padding: '0 5px', lineHeight: '16px' }}>
+      {label} {done}/{total}
+    </span>
+  )
+  return (
+    <Panel
+      title="论文推进"
+      extra={<span style={{ fontSize: 10, color: C.faint }}>就绪 {summary.ready || 0}/{summary.total || rows.length} · 受阻 {summary.blocked || 0}</span>}
+    >
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
+        <button type="button" onClick={() => onSelect(null)} style={{ fontSize: 10, border: `1px solid ${selectedId ? C.border : C.accent}`, background: selectedId ? 'transparent' : C.chip, color: selectedId ? C.muted : C.accent, borderRadius: 8, padding: '2px 8px', cursor: 'pointer' }}>{allLabel}</button>
+        {rows.map((r) => (
+          <button key={r.id} type="button" onClick={() => onSelect(selectedId === r.id ? null : r.id)} style={{ fontSize: 10, border: `1px solid ${selectedId === r.id ? C.accent : C.border}`, background: selectedId === r.id ? C.chip : 'transparent', color: selectedId === r.id ? C.accent : C.muted, borderRadius: 8, padding: '2px 8px', cursor: 'pointer' }}>{r.id}</button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(245px, 1fr))', gap: 6 }}>
+        {rows.map((r) => {
+          const active = selectedId === r.id
+          const taskProblem = (r.tasks.blocked || 0) > 0 || (r.tasks.failed || 0) > 0
+          const reviewColor = r.review && r.review.severity === 'pass' ? C.ok : r.review && r.review.severity === 'fail' ? C.err : r.review && r.review.severity === 'warn' ? C.warn : C.faint
+          return (
+            <button
+              key={r.id}
+              type="button"
+              data-paper-progress-row={r.id}
+              onClick={() => onSelect(active ? null : r.id)}
+              style={{ textAlign: 'left', border: `1px solid ${active ? C.accent : taskProblem ? C.err : C.border}`, borderRadius: 8, padding: '7px 8px', background: active ? C.chip : C.card, color: C.fg, cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <b style={{ fontSize: 11, color: C.accent }}>{r.id}</b>
+                <span style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 9, color: r.confirmed ? C.ok : C.warn }}>{r.confirmed ? '🔒 已确认' : '待确认'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+                {metric('任务', r.tasks.completed, r.tasks.total, taskProblem ? C.err : C.accent)}
+                {metric('文献', r.references.verified, r.references.total, C.warn)}
+                {metric('图件', r.figures.approved, r.figures.total, C.warn)}
+                <span style={{ fontSize: 9, color: reviewColor, border: `1px solid ${reviewColor}`, borderRadius: 8, padding: '0 5px', lineHeight: '16px' }}>审查 {r.review && r.review.severity ? r.review.severity : 'none'}</span>
+              </div>
+              <div style={{ fontSize: 10, color: taskProblem ? C.err : C.muted, lineHeight: 1.45, marginTop: 5 }}>
+                下一步：{r.nextAction}{r.owner ? ` · 责任成员 ${r.owner}` : ''}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </Panel>
+  )
+}
+
+function tasksForResult(tasks, resultId) {
+  if (!resultId) return tasks
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  const keep = new Set(tasks.filter((t) => t.resultId === resultId).map((t) => t.id))
+  const queue = [...keep]
+  while (queue.length > 0) {
+    const t = byId.get(queue.shift())
+    for (const dep of (t && t.blockedBy) || []) {
+      if (!keep.has(dep) && byId.has(dep)) { keep.add(dep); queue.push(dep) }
+    }
+  }
+  return tasks.filter((t) => keep.has(t.id))
+}
+
 // ------------------------------------------------------ 成员带（动作姿态）----
 
 // 成员吉祥物查找（v0.9.0 提取共用：MemberStrip / CaptainInbox / DAG ownerMascotOf 同源）
@@ -599,7 +758,7 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
       data-member-strip=""
       style={{ borderBottom: `1px solid ${C.divider}`, marginBottom: 8 }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 2px', padding: '2px 0 8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: 6, padding: '2px 0 8px' }}>
         {members.map((m) => {
           const meta = roleMetaOf(m)
           const mascot = meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null
@@ -608,6 +767,7 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
           const running = live === 'running' || live === 'claimed/working'
           const pose = running ? 'working' : owned.length > 0 ? 'thinking' : 'idle'
           const offline = live === 'offline'
+          const current = owned.find((t) => t.status === 'in_progress') || owned.find((t) => t.status === 'claimed') || owned[0] || null
           const poseLabel = pose === 'working' ? '正在执行' : pose === 'thinking' ? '领了任务待开工' : '暂无在办'
           const isExp = expandedMember === m.name
           return (
@@ -619,73 +779,72 @@ function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, mem
               onClick={openable ? () => { try { openMemberSession(m) } catch { /* TeamTab 统一 toast */ } } : undefined}
               title={`${m.name} · ${meta.label || m.label || ''} · ${LIVE_LABEL[live] || live} · ${poseLabel}（在办 ${owned.length}）${openable ? ' · 点击头像打开会话' : ''}`}
               style={{
-                width: 66,
+                minWidth: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                gap: 1,
-                padding: '3px 2px',
+                gap: 3,
+                padding: '6px 7px',
                 borderRadius: 8,
+                border: `1px solid ${running ? C.accent : C.divider}`,
+                background: C.card,
                 cursor: openable ? 'pointer' : 'default',
               }}
             >
-              <span
-                style={{
-                  position: 'relative',
-                  display: 'inline-flex',
-                  filter: offline ? 'grayscale(1)' : 'none',
-                  opacity: offline ? 0.55 : 1,
-                  animation: running ? 'dsh-sci-bob 1.4s ease-in-out infinite' : undefined,
-                }}
-              >
-                <MascotAvatar
-                  file={mascot}
-                  emoji={meta.icon}
-                  size={40}
-                  overlay={<ActionOverlay file={pose === 'working' ? 'working.svg' : pose === 'thinking' ? 'thinking.svg' : null} avatarSize={40} />}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                 <span
                   style={{
-                    position: 'absolute', right: -1, top: -1, width: 9, height: 9,
-                    borderRadius: '50%', background: LIVE_COLOR[live] || C.faint,
-                    border: '1.5px solid rgba(127,127,127,0.2)',
-                    animation: running ? 'dsh-sci-pulse 1.6s ease-in-out infinite' : undefined,
+                    position: 'relative', display: 'inline-flex', flexShrink: 0,
+                    opacity: offline ? 0.72 : 1,
+                    animation: running ? 'dsh-sci-bob 1.8s ease-in-out infinite' : undefined,
                   }}
-                />
-              </span>
-              <b style={{ fontSize: 10, color: C.fg, maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{m.name}</b>
-              <span style={{ fontSize: 9, color: C.muted, maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }} title={meta.label || m.label || m.role || ''}>
-                {meta.label || m.label || m.role || ''}
-              </span>
-              <span
-                data-member-state=""
-                style={{ fontSize: 9, color: LIVE_COLOR[live] || C.faint, lineHeight: '12px' }}
-                title={`${LIVE_LABEL[live] || live} · ${poseLabel}`}
+                >
+                  <MascotAvatar
+                    file={mascot}
+                    emoji={meta.icon}
+                    size={34}
+                    overlay={<ActionOverlay file={pose === 'working' ? 'working.svg' : pose === 'thinking' ? 'thinking.svg' : null} avatarSize={34} />}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute', right: -1, top: -1, width: 9, height: 9,
+                      borderRadius: '50%', background: LIVE_COLOR[live] || C.faint,
+                      border: `2px solid ${C.card}`,
+                      animation: running ? 'dsh-sci-pulse 1.6s ease-in-out infinite' : undefined,
+                    }}
+                  />
+                </span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <b style={{ display: 'block', fontSize: 11, color: C.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</b>
+                  <span style={{ display: 'block', fontSize: 9, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={meta.label || m.label || m.role || ''}>
+                    {meta.label || m.label || m.role || ''}
+                  </span>
+                  <span data-member-state="" style={{ display: 'block', fontSize: 9, color: LIVE_COLOR[live] || C.faint, lineHeight: '12px' }} title={`${LIVE_LABEL[live] || live} · ${poseLabel}`}>
+                    {LIVE_LABEL[live] || live}
+                  </span>
+                </span>
+                <span title={`在办任务 ${owned.length} 个`} style={{ minWidth: 18, textAlign: 'center', padding: '0 4px', borderRadius: 8, fontSize: 9, lineHeight: '16px', color: owned.length > 0 ? '#fff' : C.muted, background: owned.length > 0 ? (running ? C.ok : C.accent) : C.chip }}>
+                  {owned.length}
+                </span>
+              </div>
+              <div
+                data-member-current-task=""
+                title={current ? `${current.id} · ${current.subject || ''}${current.resultId ? ` · ${current.resultId}` : ''}` : '暂无当前任务'}
+                style={{ minHeight: 28, fontSize: 9, color: current ? C.fg : C.faint, lineHeight: '13px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
               >
-                {LIVE_LABEL[live] || live}
-              </span>
-              <span
-                title={`在办任务 ${owned.length} 个`}
-                style={{
-                  minWidth: 16, textAlign: 'center', padding: '0 4px', borderRadius: 8,
-                  fontSize: 9, lineHeight: '14px',
-                  color: owned.length > 0 ? '#fff' : C.muted,
-                  background: owned.length > 0 ? (running ? C.ok : C.accent) : C.chip,
-                }}
-              >
-                {owned.length}
-              </span>
-              <span
+                {current ? `${current.resultId ? `${current.resultId} · ` : ''}${current.subject || current.id}` : '暂无当前任务'}
+              </div>
+              <button
+                type="button"
                 data-member-expand={isExp ? 'open' : 'closed'}
                 onClick={(e) => {
                   e.stopPropagation()
                   setExpandedMember(isExp ? null : m.name)
                 }}
                 title={isExp ? `收起 ${m.name} 的任务列表` : `展开 ${m.name} 的任务列表（${tasks.filter((t) => t.assignee === m.name).length}）`}
-                style={{ fontSize: 9, color: isExp ? C.accent : C.faint, cursor: 'pointer', lineHeight: '12px', padding: '0 6px' }}
+                style={{ fontSize: 9, color: isExp ? C.accent : C.muted, cursor: 'pointer', lineHeight: '14px', padding: '0 6px', border: 0, background: 'transparent', textAlign: 'right' }}
               >
-                {isExp ? '▴' : '▾'}
-              </span>
+                {isExp ? '收起 ▴' : '任务 ▾'}
+              </button>
             </div>
           )
         })}
@@ -1235,11 +1394,19 @@ function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
                 data-dag-focus={isFocus ? 'true' : undefined}
                 data-dag-dimmed={dimmed ? 'true' : undefined}
                 onClick={() => setSel(isSel ? null : t.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSel(isSel ? null : t.id)
+                  }
+                }}
                 onMouseEnter={() => setHoverId(t.id)}
                 onMouseLeave={() => setHoverId((cur) => (cur === t.id ? null : cur))}
                 onFocus={() => setHoverId(t.id)}
                 onBlur={() => setHoverId((cur) => (cur === t.id ? null : cur))}
                 tabIndex={0}
+                role="button"
+                aria-pressed={isSel}
                 title={`${t.id} · ${t.subject || ''} · ${t.assignee || '待领'} · 悬停高亮依赖链，点击${isSel ? '收起' : '展开'}详情`}
                 style={{
                   position: 'absolute', left: x, top: y, width: DAG_NODE_W, height: DAG_NODE_H,
@@ -1473,7 +1640,7 @@ function TaskBoard({ tasks, focusTaskId, onClearFocus }) {
   )
 }
 
-// 队长收件箱（v0.9.0，对齐 agent-teams WorkspaceSummary 的 captainInbox 卡）：成员回报摘要列表——
+// 任务回报台账：数据源是任务的 result_note 投影，不冒充 agent-teams 的真实消息收件箱。
 // 数据源 = team.json tasks 里带 result（result_note，sci_team_update_task 回写）的任务，
 // 按 updatedAt 倒序取最近 8 条；行 = 成员吉祥物 + 任务号 + 回报摘要 + 时间。不是完整聊天记录：
 // 只展示队长侧可见的回报摘要（agent-teams 同款克制语义）。
@@ -1486,7 +1653,7 @@ function CaptainInbox({ tasks, members, roles }) {
     return (
       <div style={{ textAlign: 'center', padding: '6px 4px 2px' }}>
         <MascotAvatar file={LEAD_MASCOT} emoji="🧑‍🔬" size={36} style={{ display: 'inline-flex' }} />
-        <Empty>收件箱空。成员完成任务并回报后，队长用 sci_team_update_task 记录 result_note，回报摘要会出现在这里。</Empty>
+        <Empty>暂无任务回报。成员完成任务后，队长用 sci_team_update_task 记录 result_note；摘要会出现在这里。这里不是成员聊天记录。</Empty>
       </div>
     )
   }
@@ -1588,6 +1755,7 @@ const ROLE_LABEL_FALLBACK = {
 function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
   const catalog = (skillMenu && skillMenu.catalog) || {}
   const installed = (skillMenu && skillMenu.installed) || {}
+  const integrations = (skillMenu && Array.isArray(skillMenu.integrations)) ? skillMenu.integrations : []
   const [busyRole, setBusyRole] = useState(null)
   const [customUrl, setCustomUrl] = useState({})
   const roleEntries = Object.entries(roles || {}).filter(([id]) => catalog[id])
@@ -1616,12 +1784,30 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
     }
   }
   const installedOf = (role) => (Array.isArray(installed[role]) ? installed[role] : [])
-  if (roleEntries.length === 0) return null
+  if (roleEntries.length === 0 && integrations.length === 0) return null
   return (
     <Panel
       title="角色技能库"
-      extra={<span style={{ fontSize: 10, color: C.faint }}>每角色 ≤3 精选仓库 · 勾选即安装（仅本插件对应角色可用）</span>}
+      extra={<span style={{ fontSize: 10, color: C.faint }}>每角色 ≤3 精选仓库 · 按角色索引控制默认可发现范围（非文件 ACL）</span>}
     >
+      {integrations.map((item) => (
+        <div
+          key={item.id}
+          data-optional-integration={item.id}
+          style={{ border: `1px solid ${C.accent}`, borderRadius: 8, padding: '7px 9px', marginBottom: 8, background: C.chip }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 12, color: C.fg }}>{item.name}</b>
+            <span style={{ fontSize: 9, color: C.accent, border: `1px solid ${C.accent}`, borderRadius: 8, padding: '0 5px' }}>可选独立插件</span>
+            <span style={{ fontSize: 9, color: C.faint }}>{item.license}</span>
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.5, marginTop: 3 }}>{item.description}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 5, fontSize: 10, color: C.faint }}>
+            安装命令：<CmdChip cmd={item.installCommand} />
+            {item.repo && <a href={item.repo} target="_blank" rel="noreferrer" style={{ color: C.accent }}>查看仓库 ↗</a>}
+          </div>
+        </div>
+      ))}
       {roleEntries.map(([role, meta]) => {
         const inst = installedOf(role)
         const byCatalogId = (id) => inst.find((x) => x.catalogId === id || x.name === id)
@@ -1742,6 +1928,7 @@ function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
 
 function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, onClearFocusTask, refresh }) {
   const [view, setView] = useState('dag')
+  const [resultFilter, setResultFilter] = useState(null)
   const [toast, setToast] = useState(null)
   const toastTimer = useRef(null)
   const notify = (msg) => {
@@ -1753,6 +1940,7 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
   const team = data.team || { members: [], tasks: [] }
   const members = Array.isArray(team.members) ? team.members.filter((m) => m && typeof m.name === 'string') : []
   const tasks = normalizeTaskBoard(team.tasks)
+  const visibleTasks = useMemo(() => tasksForResult(tasks, resultFilter), [tasks, resultFilter])
   const onOpenMember = (m) => {
     try {
       if (typeof openMemberSession !== 'function') throw new Error('成员会话跳转不可用')
@@ -1764,6 +1952,7 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
   return (
     <div>
       <ProgressOverview tasks={tasks} />
+      <PaperProgressOverview progress={data.blueprint && data.blueprint.paperProgress} selectedId={resultFilter} onSelect={setResultFilter} />
       {members.length === 0 ? (
         // 空队伍：lead 鲸鱼娘 + 一键建队引导（原花名册空态）
         <Panel title="团队（0）">
@@ -1774,7 +1963,7 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
         </Panel>
       ) : (
         <Panel
-          title={`任务流 DAG（${tasks.length}）`}
+          title={`任务流 DAG（${visibleTasks.length}${resultFilter ? ` · ${resultFilter}` : ''}）`}
           extra={(
             <ViewToggle
               view={view}
@@ -1796,18 +1985,18 @@ function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, on
           />
           {view === 'dag' ? (
             <TaskDag
-              tasks={tasks}
+              tasks={visibleTasks}
               members={members}
               roles={data.roles}
               focusTaskId={focusTaskId}
               onClearFocus={onClearFocusTask}
             />
           ) : (
-            <TaskBoard tasks={tasks} focusTaskId={focusTaskId} onClearFocus={onClearFocusTask} />
+            <TaskBoard tasks={visibleTasks} focusTaskId={focusTaskId} onClearFocus={onClearFocusTask} />
           )}
         </Panel>
       )}
-      <Panel title="收件箱" extra={<span style={{ fontSize: 10, color: C.faint }}>成员回报摘要（最近 8 条）</span>}>
+      <Panel title="任务回报台账" extra={<span style={{ fontSize: 10, color: C.faint }}>result_note 摘要（最近 8 条）</span>}>
         <CaptainInbox tasks={tasks} members={members} roles={data.roles} />
       </Panel>
       {/* v0.9.0 角色技能库：勾选精选目录 / 自定义仓库链接安装（POST /skill-manage） */}
@@ -2079,7 +2268,7 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
                       maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}
                   >
-                    {ref.verified ? '✓' : '⚠'} {ref.doi ? `doi:${ref.doi}` : ref.title || '（无标题）'}
+                    {ref.verified ? '✓' : '⚠'} {ref.title || (ref.doi ? `doi:${ref.doi}` : '（无标题）')}
                   </span>
                 ))}
               </div>
@@ -2087,7 +2276,11 @@ function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 10, color: C.faint }}>添加文献：</span>
               <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=method`} />
+              <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=concept`} />
+              <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=background`} />
               <CmdChip cmd={`sci_result_reference_add result_id=${r.id} used_as=evidence`} />
+              {refs.some((x) => x && x.doi) && <CmdChip cmd={`sci_result_reference_verify result_id=${r.id} ref_doi=<DOI> used_as=<用途>`} />}
+              {refs.some((x) => x && x.doi) && <CmdChip cmd={`sci_result_reference_remove result_id=${r.id} ref_doi=<DOI> used_as=<用途>`} />}
             </div>
           </div>
           {/* 确认/快筛命令芯片（v0.9.0） */}
@@ -2122,8 +2315,8 @@ function ResultsList({ results, tasksById, onOpenTask, onOpenFigure, reviewById 
 const FG_PAD = 12
 const FG_CORE_W = 240
 const FG_CORE_H = 64
-const FG_RES_W = 190
-const FG_RES_H = 62
+const FG_RES_W = 210
+const FG_RES_H = 88
 const FG_LEAF_W = 168
 const FG_LEAF_H = 24
 const FG_RES_GAP = 34
@@ -2253,6 +2446,7 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
     // F4：与框架图同口径——union(blueprint tasks, 任务板 resultId 反查) 去重
     const tasks = [...resultTaskIdsOf(r, tasksById)]
     const figures = Array.isArray(r.figures) ? r.figures : []
+    const progress = bp.paperProgress && Array.isArray(bp.paperProgress.results) ? bp.paperProgress.results.find((x) => x.id === r.id) : null
     return (
       <div data-framework-detail={r.id} style={{ border: `1px solid ${C.divider}`, borderRadius: 8, padding: '6px 10px', background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -2274,6 +2468,17 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
           )}
         </div>
         {r.claim && <div style={{ whiteSpace: 'pre-wrap', marginTop: 4, color: C.fg }}><b style={{ color: C.accent }}>主张：</b>{r.claim}</div>}
+        {progress && (
+          <div data-framework-result-progress={r.id} style={{ marginTop: 5, padding: '5px 7px', border: `1px solid ${C.divider}`, borderRadius: 7, background: C.card }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 10 }}>
+              <span>任务 {progress.tasks.completed}/{progress.tasks.total}</span>
+              <span>文献 {progress.references.verified}/{progress.references.total}</span>
+              <span>图件终审 {progress.figures.approved}/{progress.figures.total}</span>
+              <span style={{ color: progress.review.severity === 'pass' ? C.ok : progress.review.severity === 'fail' ? C.err : C.warn }}>审查 {progress.review.severity}</span>
+            </div>
+            <div style={{ marginTop: 3, color: progress.tasks.blocked > 0 || progress.tasks.failed > 0 ? C.err : C.muted }}>下一步：{progress.nextAction}{progress.owner ? ` · ${progress.owner}` : ''}</div>
+          </div>
+        )}
         {tasks.length > 0 && (
           <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
             <span style={{ flexShrink: 0 }}>支撑任务：</span>
@@ -2330,24 +2535,38 @@ function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTas
   const f = figById.get(sel.id)
   if (!f) return <Empty>图表 {sel.id} 未登记（或已清理）。</Empty>
   const inside = pathInsideWorkspace(f.path, workspaceRoot)
+  const previewable = inside && figurePreviewable(f.path)
   return (
     <div data-framework-detail={f.id} style={{ border: `1px solid ${C.divider}`, borderRadius: 8, padding: '6px 10px', background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }}>
-      <div style={{ color: C.fg, fontWeight: 700 }}>{f.title}</div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ color: C.fg, fontWeight: 700 }}>{f.title}</div>
+        <FigureAuditBadge figure={f} />
+      </div>
       <div style={{ marginTop: 2 }}>{f.id} · {f.sha256_12} · {fmtBytes(f.bytes)} · {fmtTime(f.registeredAt)}</div>
-      {inside && (
+      {previewable && (
         <img
           src={`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`}
           alt={f.title}
           style={{ display: 'block', maxWidth: '100%', maxHeight: 180, marginTop: 6, borderRadius: 6, border: `1px solid ${C.divider}` }}
         />
       )}
+      {inside && !previewable && (
+        <button
+          type="button"
+          onClick={() => { try { window.open(`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`, '_blank') } catch { /* ignore */ } }}
+          style={{ marginTop: 5, fontSize: 10, cursor: 'pointer' }}
+        >
+          打开 {String(f.path).split('.').pop().toUpperCase()} 投稿文件
+        </button>
+      )}
       {!inside && f.path && <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.path}>{f.path}</div>}
+      <FigureAuditDetails figure={f} />
     </div>
   )
 }
 
 // 框架图画布（v0.7.0）：核心 → Results → 任务/图表叶，SVG 边 + HTML 节点，纯 CSS/SVG 无三方库。
-function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onOpenFigure }) {
+function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onOpenFigure, focusResultId }) {
   const [sel, setSel] = useState(null)
   const layout = useMemo(() => frameworkLayout(bp || {}, tasksById, figById), [bp, tasksById, figById])
   const viewportRef = useRef(null)
@@ -2358,6 +2577,17 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
     const target = (layout.canvasW - vp.clientWidth) / 2
     if (target > 0) vp.scrollLeft = target
   }, [layout.canvasW])
+  useEffect(() => {
+    if (!focusResultId) return
+    setSel({ kind: 'result', id: focusResultId })
+    const timer = setTimeout(() => {
+      try {
+        const el = document.querySelector(`[data-framework-node="${focusResultId}"]`)
+        if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      } catch { /* ignore */ }
+    }, 80)
+    return () => clearTimeout(timer)
+  }, [focusResultId])
   if (layout.resultCount === 0 && !(bp && bp.core && (bp.core.title || bp.core.claim))) {
     return <Empty>还没有文章框架。让队长用 sci_blueprint_set 确立核心、sci_result_add 添加 Results，这里会长出框架图。</Empty>
   }
@@ -2427,6 +2657,7 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
             const rc = RESULT_STATUS_COLOR[status] || C.faint
             const isSel = sel && sel.kind === 'result' && sel.id === r.id
             const figCount = Array.isArray(r.figures) ? r.figures.length : 0
+            const p = bp.paperProgress && Array.isArray(bp.paperProgress.results) ? bp.paperProgress.results.find((x) => x.id === r.id) : null
             return (
               <div
                 key={r.id}
@@ -2458,6 +2689,18 @@ function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onO
                 >
                   {r.title || r.id}
                 </div>
+                {p && (
+                  <div data-framework-progress={r.id} style={{ marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 4, fontSize: 8, color: C.muted }}>
+                      <span style={{ color: p.tasks.total > 0 && p.tasks.completed === p.tasks.total ? C.ok : C.muted }}>任务 {p.tasks.completed}/{p.tasks.total}</span>
+                      <span style={{ color: p.references.total > 0 && p.references.verified === p.references.total ? C.ok : C.muted }}>文献 {p.references.verified}/{p.references.total}</span>
+                      <span style={{ color: p.figures.total > 0 && p.figures.approved === p.figures.total ? C.ok : C.muted }}>图 {p.figures.approved}/{p.figures.total}</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 3, background: C.chip, overflow: 'hidden', marginTop: 4 }}>
+                      <span style={{ display: 'block', height: '100%', width: `${p.tasks.total > 0 ? Math.round(100 * p.tasks.completed / p.tasks.total) : 0}%`, background: p.tasks.blocked > 0 || p.tasks.failed > 0 ? C.err : C.accent }} />
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -2638,6 +2881,7 @@ function ReviewCoverageSection({ rc }) {
 
 function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
   const [view, setView] = useState('graph')
+  const [focusResultId, setFocusResultId] = useState(null)
   const bp = (data && data.blueprint) || {}
   const core = bp.core || {}
   const results = Array.isArray(bp.results) ? bp.results : []
@@ -2672,6 +2916,7 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
           <div style={{ marginTop: 5 }}><CmdChip cmd="sci_blueprint_set" /></div>
         </div>
       )}
+      <PaperProgressOverview progress={bp.paperProgress} selectedId={focusResultId} onSelect={setFocusResultId} allLabel="全部 Result" />
       {view === 'graph' ? (
         <Panel
           title="文章框架图"
@@ -2693,6 +2938,7 @@ function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
             workspaceRoot={data.workspaceRoot}
             onOpenTask={onOpenTask}
             onOpenFigure={onOpenFigure}
+            focusResultId={focusResultId}
           />
         </Panel>
       ) : (
@@ -2771,6 +3017,7 @@ function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus })
     <div>
       {figures.map((f) => {
         const inside = pathInsideWorkspace(f.path, workspaceRoot)
+        const previewable = inside && figurePreviewable(f.path)
         // 版本链（v0.9.0 Track 3）：register 记录 version/prevId/prevSha——上一版本档案在本列表里
         // 可查（旧档案可能已被截断清理，找不到时仅提示 sha）
         const prev = f.prevId ? figures.find((x) => x && x.id === f.prevId) : null
@@ -2814,21 +3061,67 @@ function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus })
                   ↩ v{(f.version || 1) - 1}
                 </span>
               )}
+              <FigureAuditBadge figure={f} />
             </div>
             <div style={{ fontSize: 11, color: C.muted, margin: '2px 0' }}>
               {f.id} · {f.sha256_12} · {fmtBytes(f.bytes)} · {fmtTime(f.registeredAt)}
             </div>
             {f.codePath && <div style={{ fontSize: 10, color: C.faint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>code: {f.codePath}</div>}
-            {inside && (
+            {(f.planId || (Array.isArray(f.sourceDataPaths) && f.sourceDataPaths.length > 0)) && (
+              <div style={{ fontSize: 10, color: C.faint }}>
+                {f.planId ? `计划 ${f.planId}` : '无图件计划'} · 源数据 {Array.isArray(f.sourceDataPaths) ? f.sourceDataPaths.length : 0} 个
+              </div>
+            )}
+            {previewable && (
               <img
                 src={`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`}
                 alt={f.title}
                 style={{ display: 'block', maxWidth: '100%', maxHeight: 180, marginTop: 6, borderRadius: 6, border: `1px solid ${C.divider}` }}
               />
             )}
+            {inside && !previewable && (
+              <div style={{ marginTop: 6, padding: '10px 8px', border: `1px dashed ${C.border}`, borderRadius: 6, textAlign: 'center', fontSize: 10, color: C.muted }}>
+                {String(f.path).split('.').pop().toUpperCase()} 文件不在卡片内渲染；点击卡片打开原文件。
+              </div>
+            )}
             {!inside && f.path && (
               <div style={{ fontSize: 10, color: C.faint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.path}>
                 {f.path}
+              </div>
+            )}
+            <FigureAuditDetails figure={f} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function FigurePlansSection({ plans }) {
+  const rows = Array.isArray(plans) ? [...plans].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)) : []
+  if (rows.length === 0) {
+    return <Empty>还没有图件计划。绘图前先说明主张、目标期刊、最终尺寸、源数据和统计要求，后续前检才有明确依据。</Empty>
+  }
+  return (
+    <div>
+      {rows.map((plan) => {
+        const linked = !!plan.figureId
+        const status = linked ? (FIGURE_AUDIT_LABEL[plan.status] || (plan.status === 'registered' ? '已登记·待前检' : plan.status === 'superseded' ? '已被新计划取代' : plan.status)) : '待绘制'
+        const color = linked ? (FIGURE_AUDIT_COLOR[plan.status] || (plan.status === 'superseded' ? C.faint : C.accent)) : C.warn
+        return (
+          <div key={plan.id} data-figure-plan={plan.id} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 9px', marginBottom: 6, background: C.card }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {plan.resultId && <ResBadge id={plan.resultId} />}
+              <b style={{ fontSize: 12, color: C.fg, flex: 1 }}>{plan.title || plan.id}</b>
+              <span style={{ fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: '0 6px', lineHeight: '16px' }}>{status}</span>
+            </div>
+            <div style={{ marginTop: 3, fontSize: 10, color: C.muted }}>
+              {plan.targetJournalName || plan.targetJournal || '通用科研图件'} · 最终宽度 {plan.targetWidthMm || '?'} mm · {plan.figureRole || 'main'} · 源数据 {Array.isArray(plan.sourceDataPaths) ? plan.sourceDataPaths.length : 0} 个
+            </div>
+            {plan.claim && <div style={{ marginTop: 3, fontSize: 10, color: C.fg }}>主张：{plan.claim}</div>}
+            {!linked && (
+              <div style={{ marginTop: 5, display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', fontSize: 10, color: C.muted }}>
+                绘图完成后绑定计划： <CmdChip cmd={`sci_figure_register plan_id=${plan.id} path=...`} />
               </div>
             )}
           </div>
@@ -3070,10 +3363,14 @@ function ReviewsSection({ reviews }) {
 
 function ArtifactsTab({ data, focusFigureId, onClearFocusFigure }) {
   const figs = Array.isArray(data.figures) ? data.figures : []
+  const figurePlans = Array.isArray(data.figurePlans) ? data.figurePlans : []
   const files = Array.isArray(data.files) ? data.files : []
   const reviews = Array.isArray(data.reviews) ? data.reviews : []
   return (
     <div>
+      <Panel title={`图件计划（${figurePlans.length}）`}>
+        <FigurePlansSection plans={figurePlans} />
+      </Panel>
       <Panel title={`图表（${figs.length}）`}>
         <FiguresSection figures={figs} workspaceRoot={data.workspaceRoot} focusFigureId={focusFigureId} onClearFocus={onClearFocusFigure} />
       </Panel>
@@ -3294,7 +3591,7 @@ export function apply(ctx) {
                 id: 'workbench',
                 order: 10,
                 title: () => '科研工作台',
-                description: () => '任务流 DAG（成员姿态/依赖跳转/收件箱）· 文章框架（确认/参考文献/快筛）· 产物（图表版本链/文件/远程/审查）（dsh-science）',
+                description: () => '任务流 DAG（成员姿态/依赖跳转/任务回报台账）· 文章框架（确认/参考文献/快筛）· 产物（图表版本链/文件/远程/审查）（dsh-science）',
               },
             ],
           })

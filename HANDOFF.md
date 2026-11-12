@@ -1,6 +1,6 @@
 # HANDOFF — dsh-science 科研工作台插件
 
-> 交接文档 · 2026-11-08 · 版本 v0.10.1
+> 交接文档 · 2026-11-12 · 版本 v0.13.0
 > 仓库：https://github.com/SPYfighting/deepseek-science
 
 ---
@@ -63,7 +63,7 @@
 
 | 功能 | 状态 | 实现要点 | 验证 |
 |---|---|---|---|
-| **绘图** | ✅ | 出版级规范 skill（Python matplotlib/seaborn + R ggplot2/patchwork，300dpi/色盲安全/双格式/期刊尺寸表）+ `sci_figure_register/list` 登记（magic bytes 校验、sha 版本链、幂等） | headless 真实登记 + 浏览器 img 加载实测 |
+| **绘图** | ✅ | `sci_figure_plan → register → audit → 人工终审`；PDF/SVG/位图登记、最终尺寸有效 dpi、代码/源数据/统计/模板许可、sha 版本链；Nature 可追溯 profile | 真实 PDF/SVG/PNG 导出 + 计划/登记/前检/批准单测 |
 | **数据库连接** | ✅ | SQLite（node:sqlite）/PostgreSQL（postgres.js）/MySQL（mysql2）；只读守卫（语句白名单+多语句拒绝）；写操作走审批卡 | 真实 SQLite 端到端（web+headless） |
 | **结果自动 review** | ✅ | 五项检查（数字溯源/断言-执行一致/图文一致/引用卫生/伪造）；证据源 `session.snapshotEvents()` 直读会话日志（绕过 web 事件总线限制）；子 agent 只读；fail 自动 followup 修正 | `/sci-review` 完整跑通（7 findings 落盘 + 面板同步） |
 | **SSH 连接与管理** | ✅ | 纯 JS ssh2（esbuild 单文件捆绑）；profile 管理/probe（CPU/GPU/conda/调度器）/作业引擎（提交→等待→收割）/Slurm+直发/断连安全/诊断表 | **真实实验室主机**：os/cpu/mem/2×RTX3090 全字段探测成功 |
@@ -77,6 +77,7 @@
 | v0.5 科研鲸鱼娘 + 花名册 | ⚠️ 部分通过 |
 | **v0.7 任务流 DAG + 文章框架图** | ✅ 游戏化：吉祥物动作姿态（working/thinking/灰度离线）、状态四列、SVG 依赖箭头、点击详情、`+N 展开` |
 | **v0.9 三标签定稿** | ✅ 团队（DAG）/ 文章框架（核心→Results→任务/图表 框架图）/ 产物（图表/文件树/远程/审查）|
+| **v0.13 Result 推进视图** | ✅ 小队卡显示当前任务；团队和框架可按 Result 聚焦；任务/DOI/图件终审/主张审查与下一步同屏；产物页展示图件计划与前检明细 |
 
 **关键设计**：skill 完全不出现在 UI——由成员角色**自主使用**；唯一人机接口是队长。
 
@@ -130,7 +131,7 @@
 | 用户可填自己仓库链接 | ✅ | 自定义 URL 输入（https 白名单、注入 7 组用例全拒）；你的 my-academic-skills 已作为 presentation 首项 |
 | 不预先下载，勾选后下载 | ✅ | `sci_skill_install` → `git clone --depth 1` → `role-skills/<role>/<name>/` |
 | **不全局生效、仅本插件** | ✅ | **不注册进 DSH 全局 skills registry**；只经成员 spawn 提示词的"扩展技能库"索引段生效 |
-| 角色间隔离 | ✅ | 每角色独立目录 + 独立 INDEX.md；node 级验证零泄漏 |
+| 角色索引隔离 | ✅ | 每角色独立目录 + INDEX.md，只限制默认可发现范围；不是文件系统 ACL，不作为不可信代码的安全边界 |
 | 可管理 | ✅ | `sci_skill_menu/installed/remove` + UI 勾选菜单 + 移除按钮 |
 
 ### 11. 汇报 PPT 角色 ✅
@@ -317,3 +318,28 @@ D:/AI/task/DSH science/
 8. **`package.json` 的 `files` 白名单是静默杀手** — 漏一个目录（如 `agents/`）源码测试全绿，用户安装后功能全废；改完必须全新安装验证
 9. **npmjs.com 注册可能受地域/网络限制** — 返回 "Access is temporarily restricted" 时换网络环境或用其他邮箱，不是技术故障
 10. **提交社区目录前先本地跑他们的校验函数** — 本次 Codex 自动 review 抓到两个 P1（URL 大小写、描述长度），都是本地跑 `validateCatalogEntry()` 立刻能发现的；规范类仓库（catalog/schema/CI）应在提交前导入其校验逻辑自测
+
+## 九、v0.12.0（2026-11-12，r1 审查返工）
+
+- `sci_team_dispatch` 现在把 `result_id`、`core.confirmed=true`、目标 `result.confirmed=true` 作为建任务前硬闸门，并拒绝已知团队成员越权派单。
+- `/file` 拒绝下发凭据/配置状态文件；`/state` 深度脱敏凭据键与 URL 内嵌账号密码；DB/SSH profile 不再镜像到工作区。SSH 连接池改为以显式 profile 名分桶，避免跨主机串用。
+- 审查器固定六项检查，缺项视为无效并重试；指定 turn 不存在时明确失败，不再拿最近事件替代。证据窗口只覆盖目标轮。
+- 每 Result 参考文献按“文献 + usedAs”去重，`used_as` 改为必填，DOI 核对采用 Crossref 标题；新增重新核对与删除工具，UI 展示标题并提供四类用途入口。
+- 团队 UI 将“收件箱”准确改名为“任务回报台账”：它是 `result_note` 投影，不是 agent-teams 的真实消息 ActivityPanel。角色 skill 是提示词/索引层的可发现性隔离，不是文件系统 ACL。
+- 当前源码验证：`npm test` 为 225 tests / 223 pass / 0 fail / 2 skip（Windows 沙箱不允许创建链接的环境跳过）；客户端已用 `node scripts/build-client.mjs` 重建。v0.12.0 已同步到 headless/scidev/web 三个隔离 profile，版本、`team.js` 与客户端 bundle 哈希一致，三个 profile 的 ESM 导入冒烟通过；未启动真实宿主会话或外部 PostgreSQL/MySQL/SSH 服务。
+
+## 十、v0.13.0（2026-11-12，科研绘图与论文进度升级）
+
+- 科研绘图：新增 `lib/figureqa.js` 与 `figure-plans.json`，公开工作流固定为 `sci_figure_plan → sci_figure_register → sci_figure_audit → 研究者人工终审`。支持 PDF；按最终物理宽度计算位图有效 dpi，检查最大版面、代码、源数据、统计说明和模板许可。自动前检不替代科学真实性或期刊接收判断。
+- 审计状态：只有自动 fail/warn 清零且研究者留下至少 10 字实际检查依据，图件才进入 `approved`。同一文件补绑新计划不刷版本，但会清除旧前检/人工结论，避免沿用错误口径。
+- 论文/UI：`paperProgressOf` 从真实任务、per-result 文献、图件审计和主张审查推导状态；未确认 Result 仍明确禁止派单。团队页可按 Result 筛任务，小队卡展示当前任务；文章框架节点显示任务/文献/图件计数和下一步；产物页显示图件计划、可操作检查明细和 PDF/TIFF 下载入口。
+- 开源方案：调研 SFL、SciencePlots、patchwork、svgutils、Scientific-Inkscape、Bioicons、SciSVG 与 academic-figure-skill。SFL 作为独立 dsh 插件入口，不复制模板资产；academic-figure-skill 仅建议实验性可选，先修复入口/许可证问题并固定审查提交。报告见 `docs/research/`。
+- 构建：`esbuild@0.25.0` 固定为 devDependency，`npm run build:client` 改为跨平台直接构建，不再在 Windows 因 `/dev/null` 回退联网安装。
+
+### 验证与边界
+
+- `npm test`：235 tests / 233 pass / 0 fail / 2 skip；两项 skip 是 Windows 沙箱不允许创建符号链接/联接的既有环境限制。
+- `npm run build:client` 成功；`node --check client/client.js` 与 host ESM import 成功。
+- Matplotlib 真实冒烟：按 89 × 65 mm 最终尺寸生成 PDF 20,954 B、SVG 7,733 B、PNG 47,847 B；临时文件已清理。
+- `npm pack --dry-run --json`：78 files，约 0.48 MB 压缩、1.89 MB 解包；`agents/`、新前检内核、技能与两份调研报告均在包内。
+- 当前机器没有可启动的 DSH 应用/CLI，因此本轮没有真实宿主 UI 截图或 headless profile 同步；前端以 bundle 构建、状态路由/纯函数单测和源码检查验证。提交前仍需以最终 `npm test` 复跑结果为准。
