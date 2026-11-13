@@ -1,60 +1,53 @@
-# 🧪 dsh-science — DeepSeek Harness 科研工作台插件
+# dsh-science｜科研工作台
 
-`dsh-science` 把 DeepSeek Harness 会话扩展为可追踪的科研团队工作台。9 个专业角色由队长统一调度，以“科学主张—证据—文章呈现”为主干推进文献、分析、模拟、绘图、写作、审查与汇报工作。
+`dsh-science` 是 DeepSeek Harness（DSH）的科研插件。它把研究问题、可核验结果、团队任务和图件放在同一工作台中，便于研究者逐步推进工作并保留来源记录。
 
-[![许可证：MIT](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-yellow.svg)](LICENSE)
-[![DSH 插件](https://img.shields.io/badge/DSH-%E6%8F%92%E4%BB%B6-1B6EC2)](https://github.com/topics/dsh-plugin)
-[![版本：0.14.0](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-0.14.0-blue)](package.json)
+界面中的“研究结果（Result）”“主张（Claim）”和“证据（Evidence）”是插件数据结构的固定名称：研究结果由可检验主张和证据支持。确认操作绑定当前修订；内容修改后需要重新确认。
 
-## 功能概览
+## 功能
 
-| 模块 | 作用 |
+| 工作台页面或能力 | 用途 |
 |---|---|
-| 科研团队 | 文献调研、课题设计、数据分析、计算模拟、模型训练、科研绘图、文章撰写、科研审查和汇报制作 9 个角色 |
-| 论文证据主干 | 用“核心贡献 → Result → Claim → Evidence”组织研究；确认凭据绑定具体修订，未确认不能进入正式执行 |
-| 团队任务图 | 用任务依赖图（DAG）展示小队状态、当前工作、任务依赖与阻塞原因，并可按 Result 聚焦 |
-| 论文驾驶舱 | 展示探索到审计冻结的阶段、关键决策，以及每个 Result 的科学、文稿、投稿三类就绪状态 |
-| 科研图件 | 支持绘图计划、版本登记、PDF/SVG/位图、期刊尺寸与有效分辨率前检、源数据追踪和人工终审 |
-| 数据与计算 | SQLite、PostgreSQL、MySQL 只读优先查询，以及 SSH 远程作业提交、监控、诊断和结果收割 |
-| 自动审查 | 核对数字溯源、主张与执行一致性、图文一致性、引用卫生、内容真实性和计划完成度 |
-| 角色技能库 | 每个角色最多展示 3 个精选开源技能仓库；按角色隔离默认发现范围 |
+| 论文主线 | 查看研究阶段、核心结论、研究结果和科学证据、稿件、投稿三类就绪状态；通过表单开始探索、整理已有结果、调整结构或请求确认。 |
+| 团队进展 | 查看成员在线状态、任务进度、依赖关系和受阻原因；支持打开成员会话。 |
+| 图表与成果 | 查看已登记图件、审查记录和工作区文件；图片加载失败时可以重试或打开原文件；有明确版本链时可对比，缺少版本链时会把同名记录标为推测。 |
+| 专家配置 | 查看专业角色、可选技能来源、运行环境、许可证、`SKILL.md` 路径、风险和安装状态；未核实的依赖不会标成已安装能力。 |
+| 科学数据与计算 | 提供数据库只读查询、SSH 远程计算和结果审查工具。数据库写操作仍需审批，远程数据传输须按项目规则核对。 |
 
-## 安装
+## 安装与入口
 
-需要 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) `>=0.2.0 <0.3.0`。当前版本已在 `0.2.2-rc.1` 网页版和桌面版上验证。
+需要 DeepSeek Harness `>=0.2.0 <0.3.0`。当前工作台按 DSH `0.2.2-rc.1` 的客户端服务接口构建。
 
 ```bash
-# 网页版或命令行使用 web 配置安装
 dsh plugin --profile web add SPYfighting/deepseek-science
-
-# 也可以使用 GitHub 地址
-dsh plugin --profile web add github:SPYfighting/deepseek-science
 ```
 
-也可在应用的插件页面选择“添加插件”，填写 `SPYfighting/deepseek-science`。安装后重启 Harness，右侧栏会出现“科研工作台”入口，会话内可使用 `/sci-*` 命令。
+也可以在 DSH 的插件管理页面添加 `SPYfighting/deepseek-science`。安装后重启对应的 DSH 配置。
 
-桌面版使用同一套团队、论文框架和产物界面。桌面环境没有网页服务时，依赖 HTTP 轮询的数据面板会显示平台限制提示，但团队工具与任务板仍可使用。
+网页版打开方式：从 DSH **左侧栏**选择“科研工作台”。右侧栏保留简要状态入口，可从那里跳转到完整工作台。工作台有四个页面：论文主线、团队进展、图表与成果、专家配置。
 
-## 快速开始
+桌面版使用相同的团队、论文和成果界面。若桌面运行环境没有 DSH 网页服务，依赖 HTTP 轮询的状态卡会提示平台限制；宿主提供的团队工具仍可使用。
 
-1. 打开“科研工作台”，默认进入“论文驾驶舱”。先说明科研问题和已有材料；探索阶段不要求提前写死结论。
-2. 队长用 `sci_blueprint_set` 建立核心贡献，用 `sci_result_add` 建立 3–6 个叙事单元，再用 `sci_claim_add` 拆成可独立核验的 Claim。
-3. 用户通过审批卡确认核心与 Result 当前修订后，队长才可进入 `execute` 并派发任务；共享质控或公共方法可以同时绑定多个 Result。
-4. 实际证据用 `sci_evidence_add` 记录来源定位、方向、条件、不确定性、允许解释和禁止外推；支持、反驳和不确定结果都保留。
-5. 每个 Result 明确选择图、表、正文、补充材料或不展示；只有选择图时才进入 `sci_figure_plan → sci_figure_register → sci_figure_audit → 研究者人工终审`。
-6. 在驾驶舱查看科学、文稿、投稿三类就绪状态；使用 `/sci-review` 审查，解析失败会自动重试一次，仍失败则按失败关闭处理。
+## 首次使用
 
-## 科研图件质量边界
+1. 在 DSH 中打开一个项目会话，再从左侧栏进入“科研工作台”。工作台会读取当前项目已保存的论文蓝图、团队任务和成果；没有记录时显示首次探索入口。
+2. 在“论文主线”选择“开始探索”填写研究问题，或选择“导入已有结果”整理已完成材料。表单会把请求提交到当前 DSH 对话；提交失败时页面会说明原因并提供恢复操作。
+3. 根据当前证据生成或调整文章结构。先检查候选核心结论和每项研究结果，再分别请求确认。只有核心结论与目标研究结果的当前修订都已确认后，工作台才开放正式任务细化和绘图操作。
+4. 在“团队进展”查看任务领取、运行、空闲、离线和阻塞状态。点击“打开成员会话”可进入对应子会话；失败时页面内提供重试。
+5. 在“图表与成果”查看已登记图件、文件和审查摘要。比较图件时，优先使用后端记录的版本关系；仅依据相同研究结果、相同文件主名和登记时间形成的比较会明确标为推测。
+6. 在“专家配置”先核对技能的运行环境、仓库、许可证、说明文件和风险，再决定是否安装。技能说明本身不代表工具、模型权重或外部服务已经配置。
 
-图件前检会检查目标期刊尺寸、有效分辨率、文件格式、矢量文字、绘图代码、源数据、统计说明和模板许可。登记后的文件若发生变化，旧前检结论会失效，必须重新登记为新版本。
+## 图件与证据边界
 
-自动前检只能验证插件可观察到的属性。科学正确性、图像完整性、最终尺寸下的可读性和期刊是否接收，仍需研究者与目标期刊确认。
+图件前检可检查记录中的文件格式、尺寸、分辨率、源数据、代码和人工审查状态。浏览器是否能预览还取决于文件能否读取和图像解码结果；扩展名只用于决定是否尝试内嵌显示，不作为加载成功的证明。
 
-Scientific Figure Library 以独立可选插件提供，不会混入角色技能目录，也不会自动执行第三方模板代码。选型依据见[科研绘图开源方案调研](docs/research/2026-11-12-科研绘图开源方案调研.md)和[学术绘图技能评估](docs/research/2026-11-12-academic-figure-skill-评估.md)。
+自动检查不能证明图像表达正确、统计方法恰当或生物学解释成立。投稿前仍需研究者核对原始数据、绘图代码、图注、目标期刊要求和人工终审结果。
 
-## 配置
+精选技能目录按角色最多列出 3 项。技能安装只复制说明文件并登记来源；软件依赖、模型权重、API 凭据和数据许可要另行确认。角色级目录用于限制插件提供的发现范围，不等同于操作系统级访问控制。
 
-可选配置文件为 `$DSH_HOME/dsh-science/config.json`。修改后立即生效，无需重启。
+## 配置与安全
+
+可选配置文件：`$DSH_HOME/dsh-science/config.json`。
 
 ```json
 {
@@ -63,34 +56,22 @@ Scientific Figure Library 以独立可选插件提供，不会混入角色技能
 }
 ```
 
-| 配置项 | 默认值 | 含义 |
-|---|---:|---|
-| `falsificationThreshold` | `2` | 当支持性结果为 0 时，触发证伪风险警告所需的负面结果数量；必须是正整数 |
-| `blockedGate` | `"warn"` | 任务依赖闸门；`warn` 表示允许派发但报告未完成依赖，`hard` 表示依赖完成前拒绝派发 |
-
-配置文件缺失或损坏时，插件使用默认值继续运行。
-
-## 安全设计
-
-- 数据库查询默认只读，写操作需要审批。
-- SSH 密码和私钥口令只通过凭据引用或环境变量读取，不写入科研工作区。
-- 文件接口限制在允许的工作区内，并阻止路径穿越和凭据状态文件下发。
-- 角色技能隔离指默认发现范围隔离，不等同于操作系统级文件权限隔离。
+数据库默认只读，写操作需要审批。SSH 凭据通过 DSH 凭据引用或环境变量读取，不写入科研工作区。文件接口限制在允许的工作区内，并阻止路径穿越和凭据状态文件下载。涉及未发表数据、患者信息或受许可约束的材料时，使用外部 API 前先确认数据边界。
 
 ## 项目文档
 
 - [功能规格说明](docs/SPEC.md)
 - [开发日志](docs/DEVLOG.md)
 - [科研团队协作示例](docs/recipes/agent-teams-science.md)
+- [生物科研能力与工作台集成调研](docs/research/2026-11-12-生物科研能力与工作台集成调研.md)
 
 ## 设计参考
 
-- [dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams)（MIT）：团队协作页面模式与鲸鱼吉祥物形式
-- [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)（MIT）：路由与执行角色的双层架构
-- [AcademicForge](https://github.com/HughYau/AcademicForge)（MIT）：计算技能的验证阶梯与诊断表
-- [K-Dense scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)（MIT）：工具档案模式
-- [PaperSpine](https://github.com/WUBING2023/PaperSpine)、[ARS academic-research-skills](https://github.com/Imbad0202/academic-research-skills) 和 [nature-skills](https://github.com/Yuan1z0825/nature-skills)：论文证据组织、学术写作与科研技能设计参考。DSH 论文证据主干 v2 是本插件的自主实现，不是 PaperSpine 的分支、后续版本或运行依赖
+- [dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams)：团队进度页面和角色会话入口。
+- [dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype)：队长分派与专业成员执行的分层方式。
+- [AcademicForge](https://github.com/HughYau/AcademicForge) 和 [K-Dense scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)：科研计算说明、工具档案和验证记录。
+- [PaperSpine](https://github.com/WUBING2023/PaperSpine)、[ARS academic-research-skills](https://github.com/Imbad0202/academic-research-skills) 与 [nature-skills](https://github.com/Yuan1z0825/nature-skills)：论文证据组织、文献与写作技能设计参考。DSH 论文证据主干 v2 是本插件的独立实现，不是这些项目的分支或运行依赖。
 
 ## 许可证
 
-本项目使用 [MIT 许可证](LICENSE)。第三方仓库、模板和技能仍受各自许可证约束；插件只在明确的许可与版本边界内提供引用或可选安装入口。
+本项目使用 [MIT 许可证](LICENSE)。第三方仓库、模型、模板和技能仍受各自许可证约束。

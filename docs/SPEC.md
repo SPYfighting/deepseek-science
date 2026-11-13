@@ -370,3 +370,14 @@ DOCTYPE ENTITY；字符引用解码（含省略分号的 `&#106` 形式）、XML
 - 审查定位：审查提示使用 `claim-id@rN` 稳定标识符；`reviewCoverageOf` 同时兼容旧文本匹配，并把稳定标识对回所属 Result，避免 Claim 文本润色后审查结论串线。
 - UI：默认首页改为“论文驾驶舱”，包含阶段轨、核心确认修订、关键决策、三类就绪计数、Result 证据卡和投稿检查。关系图新增 Claim/Evidence 叶节点及详情；团队任务可显示多个 Result 徽章，团队页作为执行层保留。
 - 新增工具：`sci_claim_add`、`sci_evidence_add`、`sci_blueprint_stage`、`sci_submission_check`；`sci_result_add/update`、`sci_team_dispatch`、`sci_blueprint_overview/export` 扩展 v2 字段与输出。
+
+## 23. 科研工作台全面重构复审修正（2026-11-13）
+
+- 入口与注入：完整工作台通过 DSH 左侧栏 `sidebar.panellist` 入口打开，主页面注册到 `main` 插槽，右侧栏提供快捷卡。`client-src/index.jsx` 的 Cordis `inject` 使用 DSH 0.2.2 服务名 `slots`、`sessions`、`layout`、`sidebarRightTabs`、`uiWorkspace`；这些名称已与 `test-env` 中官方客户端类型和导出核对。npm 包名只用于插件元数据的包依赖声明。
+- 页面职责：论文主线呈现阶段、核心结论、Result 与三类就绪状态；团队进展呈现成员状态和任务依赖；图表与成果呈现图件、文件、审查记录和上一条可核对记录；专家配置呈现角色能力、技能来源和运行边界。
+- 状态口径：前端就绪指标直接读取后端 `paperSpine.results[].readiness.{scientific,manuscript,submission}`。任务进度与稿件/投稿就绪不混用。成员 `claimed`、`working`、`running`、`idle`、`offline` 分别显示；后端 `claimed/working` 回退态标注工作状态待确认。
+- 核心确认闸门：前端表单动作和按钮都要求当前核心结论与目标 Result 同时确认；四种组合矩阵中仅 `core=true,result=true` 放行任务细化和正式绘图。
+- 图件历史：后端 `prevId` 存在时按登记版本链比较。没有显式关系时，只在同一 Result 的同名文件具备真实时间戳时推测较早记录，并在 UI 标注“推测”；不补造版本号。图片可否内嵌显示由浏览器实际加载结果确认，失败时提供重试与打开原文件入口。
+- 专家配置：精选目录每角色不超过 3 项；RDKit 归入数据分析角色。工作台卡片显示运行环境、来源仓库、许可证、`SKILL.md` 状态/路径、使用风险和安装状态。技能目录接口保留仓库与安装位置等字段。
+- 诊断输出：技能安装与 Git 进度诊断写到 stderr，stdout 保留给工具返回值和机器可读结果。
+- 验证状态：2026-11-13 源码单测为 268 项（266 通过、0 失败、2 跳过），客户端构建通过。真实 DSH Web 多尺寸和错误状态验收、发布包 dry-run 将在任务收尾时记录到开发日志与本地交接文件。

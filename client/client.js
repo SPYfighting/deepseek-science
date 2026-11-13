@@ -36,4073 +36,1682 @@ __export(index_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(index_exports);
-var import_react = __toESM(require("react"), 1);
+var import_react10 = __toESM(require("react"), 1);
 
-// lib/dag.js
-function normalizedBlockedBy(task) {
-  const raw = task && Array.isArray(task.blockedBy) ? task.blockedBy : [];
-  const self = task && typeof task.id === "string" ? task.id.trim() : null;
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const item of raw) {
-    if (typeof item !== "string") continue;
-    const id = item.trim();
-    if (!id || id === self || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
-}
-function normalizeTaskBoard(tasks) {
-  const list = Array.isArray(tasks) ? tasks : [];
-  return list.filter((t) => t && typeof t === "object" && typeof t.id === "string").map((t) => ({ ...t, blockedBy: normalizedBlockedBy(t) }));
-}
-function dependencyClosure(startId, tasks) {
-  const list = Array.isArray(tasks) ? tasks.filter((t) => t && typeof t.id === "string") : [];
-  const byId = new Map(list.map((t) => [t.id, t]));
-  const rev = /* @__PURE__ */ new Map();
-  for (const t of list) {
-    for (const dep of normalizedBlockedBy(t)) {
-      if (!rev.has(dep)) rev.set(dep, []);
-      rev.get(dep).push(t.id);
-    }
-  }
-  const upstream = [];
-  const downstream = [];
-  const related = /* @__PURE__ */ new Set();
-  if (!byId.has(startId)) return { upstream, downstream, related };
-  related.add(startId);
-  const walkUp = [startId];
-  const seenUp = /* @__PURE__ */ new Set([startId]);
-  for (let i = 0; i < walkUp.length; i++) {
-    const t = byId.get(walkUp[i]);
-    for (const dep of normalizedBlockedBy(t)) {
-      if (!byId.has(dep) || seenUp.has(dep)) continue;
-      seenUp.add(dep);
-      upstream.push(dep);
-      related.add(dep);
-      walkUp.push(dep);
-    }
-  }
-  const walkDown = [startId];
-  const seenDown = /* @__PURE__ */ new Set([startId]);
-  for (let i = 0; i < walkDown.length; i++) {
-    for (const next of rev.get(walkDown[i]) || []) {
-      if (seenDown.has(next)) continue;
-      seenDown.add(next);
-      downstream.push(next);
-      related.add(next);
-      walkDown.push(next);
-    }
-  }
-  return { upstream, downstream, related };
-}
+// client-src/workbench/ResearchWorkbench.jsx
+var import_react8 = __toESM(require("react"), 1);
 
-// client-src/index.jsx
-var import_jsx_runtime = require("react/jsx-runtime");
-var inject = ["sidebarRightTabs", "slots", "resources"];
-var VERSION = "0.14.0";
-var STATE_URL = "/plugins/dsh-science/state";
-var POLL_MS = 3e3;
-var teamRuntime = { hasRecordedParents: false };
-var MASCOT_BASE = "/plugins/dsh-science/assets/";
-var LEAD_MASCOT = "lead.svg";
-var mascotUrl = (file) => `${MASCOT_BASE}${file}?v=${VERSION}`;
-var ROLE_MASCOT_FALLBACK = {
-  "literature-scout": "scout.svg",
-  "topic-designer": "designer.svg",
-  simulator: "simulator.svg",
-  trainer: "trainer.svg",
-  "figure-expert": "figure.svg",
-  writer: "writer.svg",
-  reviewer: "reviewer.svg",
-  analyst: "analyst.svg",
-  presentation: "presentation.svg"
-};
-var C = {
-  fg: "var(--dsw-alias-label-primary, inherit)",
-  muted: "var(--dsw-alias-label-secondary, #888)",
-  faint: "var(--dsw-alias-label-tertiary, #aaa)",
-  accent: "var(--dsw-alias-state-business-primary, #1B6EC2)",
-  ok: "var(--dsw-alias-state-success-primary, #009E73)",
-  warn: "var(--dsw-alias-state-warn-primary, #E69F00)",
-  err: "var(--dsw-alias-state-error-primary, #D55E00)",
-  card: "var(--dsw-alias-bg-layer-1, rgba(127,127,127,0.08))",
-  surface: "var(--dsw-alias-bg-layer-2, rgba(127,127,127,0.18))",
-  chip: "var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))",
-  border: "var(--dsw-alias-border-l1, rgba(127,127,127,0.25))",
-  borderNode: "var(--dsw-alias-border-l4, rgba(127,127,127,0.4))",
-  divider: "var(--dsw-alias-separator-primary, rgba(127,127,127,0.18))"
-};
-var STATUS_COLOR = {
-  pending: C.warn,
-  claimed: C.accent,
-  in_progress: C.accent,
-  completed: C.ok,
-  failed: C.err,
-  cancelled: C.faint,
-  deleted: C.faint
-};
-var RESULT_STATUS_COLOR = {
-  planned: C.muted,
-  in_progress: C.accent,
-  supported: C.ok,
-  negative: C.err,
-  dropped: C.faint
-};
-var RESULT_STATUS_LABEL = {
-  planned: "\u8BA1\u5212",
-  in_progress: "\u8FDB\u884C\u4E2D",
-  supported: "\u5DF2\u652F\u6491",
-  negative: "\u8D1F\u9762",
-  dropped: "\u5DF2\u5F03"
-};
-var USED_AS_LABEL = {
-  method: "\u65B9\u6CD5",
-  concept: "\u6982\u5FF5",
-  background: "\u80CC\u666F",
-  evidence: "\u8BC1\u636E"
-};
-var SCREENING_LABEL = {
-  include: "\u5FEB\u7B5B\xB7\u7EB3\u5165",
-  exclude: "\u5FEB\u7B5B\xB7\u6392\u9664",
-  maybe: "\u5FEB\u7B5B\xB7\u5F85\u5B9A"
-};
-var SCREENING_COLOR = {
-  include: C.ok,
-  exclude: C.err,
-  maybe: C.warn
-};
-var PAPER_STAGE_LABEL = {
-  explore: "\u63A2\u7D22",
-  frame: "\u6784\u67B6",
-  execute: "\u6267\u884C",
-  synthesize: "\u7EFC\u5408",
-  draft: "\u64B0\u5199",
-  audit: "\u5BA1\u8BA1\u51BB\u7ED3"
-};
-var PAPER_STAGE_ORDER = ["explore", "frame", "execute", "synthesize", "draft", "audit"];
-var DIRECTION_LABEL = {
-  not_assessed: "\u672A\u5224\u5B9A",
-  supports: "\u652F\u6301",
-  contradicts: "\u53CD\u9A73",
-  inconclusive: "\u4E0D\u786E\u5B9A",
-  not_applicable: "\u4E0D\u9002\u7528"
-};
-var DIRECTION_COLOR = {
-  not_assessed: C.faint,
-  supports: C.ok,
-  contradicts: C.err,
-  inconclusive: C.warn,
-  not_applicable: C.muted
-};
-var MANUSCRIPT_ROLE_LABEL = {
-  main: "\u6838\u5FC3\u7ED3\u679C",
-  validation: "\u9A8C\u8BC1",
-  control: "\u5BF9\u7167",
-  boundary: "\u8FB9\u754C",
-  supplement: "\u8865\u5145",
-  excluded: "\u6392\u9664"
-};
-var PRESENTATION_LABEL = {
-  undecided: "\u5F85\u5B9A",
-  figure: "\u56FE",
-  table: "\u8868",
-  prose: "\u6B63\u6587",
-  supplement: "\u8865\u5145\u6750\u6599",
-  omit: "\u4E0D\u5C55\u793A"
-};
-var READINESS_LABEL = { ready: "\u5C31\u7EEA", blocked: "\u53D7\u963B", excluded: "\u5DF2\u6392\u9664" };
-var FIGURE_AUDIT_LABEL = {
-  "not-audited": "\u672A\u524D\u68C0",
-  failed: "\u524D\u68C0\u5931\u8D25",
-  "needs-attention": "\u9700\u5904\u7406",
-  "ready-for-manual-review": "\u5F85\u4EBA\u5DE5\u7EC8\u5BA1",
-  approved: "\u5DF2\u4EBA\u5DE5\u7EC8\u5BA1",
-  rejected: "\u4EBA\u5DE5\u9000\u56DE"
-};
-var FIGURE_AUDIT_COLOR = {
-  "not-audited": C.faint,
-  failed: C.err,
-  "needs-attention": C.warn,
-  "ready-for-manual-review": C.accent,
-  approved: C.ok,
-  rejected: C.err
-};
-var LIVE_COLOR = {
-  running: C.accent,
-  idle: C.ok,
-  "claimed/working": C.accent,
-  offline: C.faint
-};
-var LIVE_LABEL = {
-  running: "\u8FD0\u884C\u4E2D",
-  idle: "\u7A7A\u95F2",
-  "claimed/working": "\u5728\u529E",
-  offline: "\u79BB\u7EBF"
-};
-var TERMINAL_STATUS = /* @__PURE__ */ new Set(["completed", "failed", "cancelled", "deleted"]);
-function copyText(text) {
+// client-src/workbench/workflow-actions.js
+var ACTION_SKILLS = Object.freeze({
+  explore: "sci-hypothesis",
+  literature: "sci-research",
+  draw: "sci-figures",
+  write: "sci-writing",
+  slides: "sci-slides"
+});
+var textOf = (value) => typeof value === "string" ? value.trim() : "";
+var resultListOf = (paperState) => Array.isArray(paperState?.results) ? paperState.results : [];
+function resultById(paperState, id) {
+  return resultListOf(paperState).find((result) => result && result.id === id) || null;
+}
+function resultLabel(result) {
+  const title = textOf(result?.title) || textOf(result?.claim) || "\u672A\u547D\u540D\u7ED3\u679C";
+  return `${title}\uFF08${result?.id || "\u65E0\u7F16\u53F7"}\uFF09`;
+}
+function resultConfirmationGate(coreConfirmed, resultConfirmed) {
+  if (coreConfirmed !== true) return "core";
+  if (resultConfirmed !== true) return "result";
+  return null;
+}
+function block(code, message, recovery, field = null) {
+  return { ok: false, error: { code, message, recovery, field } };
+}
+function request(action, text, targetId = null) {
+  return { ok: true, request: { action, text, targetId, mode: "queue" } };
+}
+function skillRequest(skill, instructions, extra) {
+  const suffix = extra ? `
+
+\u8865\u5145\u8981\u6C42\uFF1A${extra}` : "";
+  return `${ACTION_SKILLS[skill] ? `/${ACTION_SKILLS[skill]}` : `/${skill}`}
+
+${instructions}${suffix}`;
+}
+function buildWorkflowRequest({ action, paperState = {}, targetId = null, userInput = {} } = {}) {
+  const input = userInput && typeof userInput === "object" ? userInput : {};
+  const core = paperState?.core || {};
+  const results = resultListOf(paperState);
+  const target = targetId ? resultById(paperState, targetId) : null;
+  if (targetId && !target && targetId !== "core") {
+    return block("missing-result", "\u627E\u4E0D\u5230\u6240\u9009\u7814\u7A76\u7ED3\u679C\uFF0C\u9875\u9762\u72B6\u6001\u53EF\u80FD\u5DF2\u66F4\u65B0\u3002", "\u5237\u65B0\u5DE5\u4F5C\u53F0\u540E\u91CD\u65B0\u9009\u62E9\u7814\u7A76\u7ED3\u679C\u3002");
+  }
+  switch (action) {
+    case "explore": {
+      const question = textOf(input.question);
+      if (!question) return block("missing-input", "\u8BF7\u5148\u5199\u4E0B\u60F3\u63A2\u7D22\u7684\u7814\u7A76\u95EE\u9898\u3002", "\u8865\u5145\u7814\u7A76\u95EE\u9898\u540E\u518D\u5F00\u59CB\u63A2\u7D22\u3002", "question");
+      const details = [
+        `\u7814\u7A76\u95EE\u9898\uFF1A${question}`,
+        textOf(input.scope) && `\u7814\u7A76\u8303\u56F4\uFF1A${textOf(input.scope)}`,
+        textOf(input.existingData) && `\u5DF2\u6709\u6570\u636E\uFF1A${textOf(input.existingData)}`,
+        textOf(input.constraints) && `\u7B97\u529B\u4E0E\u65F6\u95F4\u7EA6\u675F\uFF1A${textOf(input.constraints)}`
+      ].filter(Boolean).join("\n");
+      return request(action, skillRequest("explore", `\u8BF7\u6309\u79D1\u7814\u63A2\u7D22\u6D41\u7A0B\u5904\u7406\u4EE5\u4E0B\u95EE\u9898\u3002\u5148\u6838\u5BF9\u5DF2\u6709\u8BC1\u636E\u3001\u5173\u952E\u5047\u8BBE\u548C\u53EF\u884C\u8303\u56F4\uFF0C\u518D\u63D0\u51FA\u53EF\u68C0\u9A8C\u7684\u7814\u7A76\u65B9\u5411\uFF1B\u4E0D\u8981\u628A\u5047\u8BBE\u5199\u6210\u7814\u7A76\u7ED3\u8BBA\u3002
+
+${details}`, textOf(input.notes)));
+    }
+    case "import_results": {
+      const source = textOf(input.source);
+      if (!source) return block("missing-input", "\u8BF7\u8BF4\u660E\u8981\u5BFC\u5165\u7684\u5DF2\u6709\u7ED3\u679C\u6765\u81EA\u54EA\u91CC\u3002", "\u5199\u5165\u6587\u4EF6\u8DEF\u5F84\u3001\u4F1A\u8BDD\u6750\u6599\u6216\u7ED3\u679C\u6458\u8981\uFF0C\u518D\u63D0\u4EA4\u7ED9\u5F53\u524D\u5BF9\u8BDD\u3002", "source");
+      return request(action, `\u8BF7\u68C0\u67E5\u5E76\u6574\u7406\u6211\u5DF2\u6709\u7684\u79D1\u7814\u7ED3\u679C\uFF0C\u4E0D\u8981\u8865\u9020\u7F3A\u5931\u6570\u636E\u3002
+
+\u7ED3\u679C\u6765\u6E90\u6216\u6458\u8981\uFF1A${source}${textOf(input.notes) ? `
+
+\u8865\u5145\u8BF4\u660E\uFF1A${textOf(input.notes)}` : ""}
+
+\u5148\u5217\u51FA\u53EF\u8FFD\u6EAF\u7684\u7ED3\u679C\u3001\u6765\u6E90\u548C\u4E0D\u786E\u5B9A\u9879\uFF0C\u518D\u63D0\u51FA\u6587\u7AE0\u7ED3\u6784\u8349\u6848\uFF1B\u672A\u7ECF\u6211\u786E\u8BA4\uFF0C\u4E0D\u8981\u6D3E\u53D1\u6B63\u5F0F\u6267\u884C\u4EFB\u52A1\u3002`);
+    }
+    case "literature": {
+      const question = textOf(input.question) || textOf(core.claim) || textOf(core.title);
+      if (!question) return block("missing-input", "\u8FD8\u6CA1\u6709\u53EF\u7528\u4E8E\u6587\u732E\u63A2\u7D22\u7684\u7814\u7A76\u95EE\u9898\u3002", "\u5148\u5F00\u59CB\u63A2\u7D22\uFF0C\u6216\u8865\u5145\u4E00\u53E5\u5F53\u524D\u7814\u7A76\u95EE\u9898\u3002", "question");
+      const existing = results.map(resultLabel).join("\uFF1B");
+      const text = skillRequest("literature", `\u56F4\u7ED5\u4EE5\u4E0B\u7814\u7A76\u95EE\u9898\u6269\u5C55\u6587\u732E\u63A2\u7D22\uFF0C\u5E76\u533A\u5206\u5DF2\u77E5\u8BC1\u636E\u3001\u4E89\u8BAE\u548C\u672A\u89E3\u51B3\u95EE\u9898\u3002\u4E0D\u8981\u628A\u6458\u8981\u6216\u6A21\u578B\u63A8\u65AD\u5199\u6210\u5DF2\u9A8C\u8BC1\u7ED3\u679C\u3002
+
+\u7814\u7A76\u95EE\u9898\uFF1A${question}${existing ? `
+
+\u5F53\u524D\u6587\u7AE0\u7ED3\u679C\uFF1A${existing}` : ""}`, textOf(input.notes));
+      return request(action, text);
+    }
+    case "generate_structure": {
+      const question = textOf(input.question) || textOf(core.claim) || textOf(core.title);
+      if (!question && results.length === 0) return block("missing-context", "\u5F53\u524D\u6CA1\u6709\u7814\u7A76\u95EE\u9898\u6216\u5DF2\u6709\u7ED3\u679C\u53EF\u4F9B\u7EC4\u7EC7\u3002", "\u5148\u5F00\u59CB\u63A2\u7D22\uFF0C\u6216\u5BFC\u5165\u4E00\u9879\u5DF2\u6709\u7ED3\u679C\u3002");
+      const context = question ? `\u7814\u7A76\u95EE\u9898\u6216\u6838\u5FC3\u7ED3\u8BBA\u5019\u9009\uFF1A${question}` : `\u5DF2\u6709\u7814\u7A76\u7ED3\u679C\uFF1A${results.map(resultLabel).join("\uFF1B")}`;
+      return request(action, `\u8BF7\u57FA\u4E8E\u5F53\u524D\u4F1A\u8BDD\u8BC1\u636E\u4E0E\u4E0B\u5217\u7814\u7A76\u80CC\u666F\u5EFA\u7ACB\u6587\u7AE0\u7ED3\u6784\u8349\u6848\uFF1A\u63D0\u51FA\u6838\u5FC3\u7ED3\u8BBA\u5019\u9009\uFF0C\u5E76\u62C6\u5206\u4E3A 3\u20135 \u4E2A\u53EF\u72EC\u7ACB\u6838\u9A8C\u7684 Result\u3002\u6BCF\u9879\u5199\u6E05\u7814\u7A76\u95EE\u9898\u3001\u8BC1\u636E\u9700\u6C42\u3001\u53CD\u8BC1\u6761\u4EF6\u548C\u5EFA\u8BAE\u5448\u73B0\u65B9\u5F0F\u3002\u53EA\u751F\u6210\u5F85\u786E\u8BA4\u8349\u6848\uFF0C\u4E0D\u8981\u81EA\u52A8\u786E\u8BA4\u6216\u6D3E\u53D1\u4EFB\u52A1\u3002
+
+${context}${textOf(input.notes) ? `
+
+\u8865\u5145\u8981\u6C42\uFF1A${textOf(input.notes)}` : ""}`);
+    }
+    case "optimize_structure": {
+      const guidance = textOf(input.guidance);
+      if (!guidance) return block("missing-input", "\u8BF7\u8BF4\u660E\u5E0C\u671B\u5982\u4F55\u8C03\u6574\u7ED3\u6784\u6216\u7814\u7A76\u7ED3\u679C\u3002", "\u5199\u4E0B\u4FEE\u6539\u4F9D\u636E\u540E\u518D\u63D0\u4EA4\u3002", "guidance");
+      const targetText = target ? `\u76EE\u6807\u7814\u7A76\u7ED3\u679C\uFF1A${resultLabel(target)}
+\u5F53\u524D\u4E3B\u5F20\uFF1A${textOf(target.claim) || "\u672A\u586B\u5199"}` : "\u76EE\u6807\uFF1A\u6574\u4F53\u6587\u7AE0\u7ED3\u6784\u4E0E Result \u4E4B\u95F4\u7684\u5173\u7CFB";
+      return request(action, `\u8BF7\u6309\u65B0\u7684\u7814\u7A76\u4E8B\u5B9E\u4FEE\u6539\u8BBA\u6587\u7ED3\u6784\u3002\u4FDD\u7559\u53EF\u8FFD\u6EAF\u8BC1\u636E\uFF0C\u4E0D\u628A\u4FEE\u6539\u5EFA\u8BAE\u76F4\u63A5\u5F53\u6210\u5DF2\u786E\u8BA4\u5185\u5BB9\u3002
+
+${targetText}
+
+\u4FEE\u6539\u8BF4\u660E\uFF1A${guidance}${textOf(input.notes) ? `
+
+\u8865\u5145\u8981\u6C42\uFF1A${textOf(input.notes)}` : ""}`, target?.id || null);
+    }
+    case "confirm": {
+      const confirmCore = targetId === "core" || !targetId;
+      if (confirmCore && !textOf(core.claim)) return block("missing-core", "\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA\u8FD8\u6CA1\u6709\u586B\u5199\u3002", "\u5148\u751F\u6210\u6587\u7AE0\u7ED3\u6784\u6216\u8865\u5145\u6838\u5FC3\u7ED3\u8BBA\uFF0C\u518D\u8BF7\u6C42\u786E\u8BA4\u3002");
+      if (!confirmCore && !target) return block("missing-result", "\u627E\u4E0D\u5230\u5F85\u786E\u8BA4\u7684\u7814\u7A76\u7ED3\u679C\u3002", "\u5237\u65B0\u5DE5\u4F5C\u53F0\u540E\u91CD\u65B0\u9009\u62E9\u3002");
+      if (confirmCore && core.confirmed) return block("already-confirmed", "\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA\u7684\u5F53\u524D\u4FEE\u8BA2\u5DF2\u7ECF\u786E\u8BA4\u3002", "\u5982\u9700\u4FEE\u6539\uFF0C\u8BF7\u5148\u63D0\u4EA4\u7ED3\u6784\u4FEE\u6539\uFF1B\u4FEE\u6539\u540E\u7684\u5185\u5BB9\u9700\u8981\u91CD\u65B0\u786E\u8BA4\u3002");
+      if (target?.confirmed) return block("already-confirmed", "\u8BE5\u7814\u7A76\u7ED3\u679C\u7684\u5F53\u524D\u4FEE\u8BA2\u5DF2\u7ECF\u786E\u8BA4\u3002", "\u5982\u9700\u4FEE\u6539\uFF0C\u8BF7\u5148\u63D0\u4EA4\u7ED3\u6784\u4FEE\u6539\uFF1B\u4FEE\u6539\u540E\u7684\u5185\u5BB9\u9700\u8981\u91CD\u65B0\u786E\u8BA4\u3002");
+      const subject = confirmCore ? `\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA\u201C${textOf(core.title) || textOf(core.claim)}\u201D` : `\u7814\u7A76\u7ED3\u679C\u201C${resultLabel(target)}\u201D`;
+      return request(action, `\u8BF7\u8C03\u7528\u8BBA\u6587\u84DD\u56FE\u786E\u8BA4\u5DE5\u5177\uFF0C\u4E3A${subject}\u53D1\u8D77 DSH \u539F\u751F\u5BA1\u6279\u5361\u3002\u5BA1\u6279\u901A\u8FC7\u524D\u4FDD\u6301\u5F85\u786E\u8BA4\u72B6\u6001\uFF0C\u4E0D\u8981\u7EE7\u7EED\u521B\u5EFA\u6B63\u5F0F\u6267\u884C\u4EFB\u52A1\u3002${textOf(input.notes) ? `
+
+\u9700\u8981\u4E00\u5E76\u8BF4\u660E\uFF1A${textOf(input.notes)}` : ""}`, confirmCore ? "core" : target.id);
+    }
+    case "refine_tasks": {
+      if (!target) return block("missing-result", "\u8BF7\u5148\u9009\u62E9\u8981\u7EC6\u5316\u7684\u7814\u7A76\u7ED3\u679C\u3002", "\u4ECE\u8BBA\u6587\u4E3B\u7EBF\u9009\u62E9\u4E00\u4E2A\u7814\u7A76\u7ED3\u679C\u540E\u518D\u8BD5\u3002");
+      const gate = resultConfirmationGate(core.confirmed, target.confirmed);
+      if (gate === "core") return block("unconfirmed-core", "\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u80FD\u521B\u5EFA\u6B63\u5F0F\u6267\u884C\u4EFB\u52A1\u3002", "\u5148\u68C0\u67E5\u6838\u5FC3\u7ED3\u8BBA\u5E76\u5B8C\u6210\u786E\u8BA4\uFF1B\u5982\u9700\u4FEE\u6539\uFF0C\u5148\u4F18\u5316\u6587\u7AE0\u7ED3\u6784\u3002");
+      if (gate === "result") return block("unconfirmed-result", `\u201C${resultLabel(target)}\u201D\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u80FD\u521B\u5EFA\u6B63\u5F0F\u6267\u884C\u4EFB\u52A1\u3002`, "\u5148\u68C0\u67E5\u7814\u7A76\u7ED3\u679C\u5E76\u5B8C\u6210\u786E\u8BA4\uFF1B\u5982\u9700\u4FEE\u6539\uFF0C\u5148\u4F18\u5316\u7ED3\u6784\u3002");
+      const text = `\u8BF7\u4E3A\u5DF2\u786E\u8BA4\u7684\u7814\u7A76\u7ED3\u679C\u7EC6\u5316\u6267\u884C\u4EFB\u52A1\u3001\u4F9D\u8D56\u5173\u7CFB\u548C\u53EF\u6838\u9A8C\u7684\u5B8C\u6210\u5224\u636E\u3002\u4FDD\u6301\u7ED3\u679C\u4E0E\u4EFB\u52A1\u53CC\u5411\u5173\u8054\uFF1B\u672A\u89E3\u51B3\u4F9D\u8D56\u987B\u6807\u660E\uFF0C\u4E0D\u8981\u628A\u6D3E\u5355\u89C6\u4E3A\u5B8C\u6210\u3002
+
+\u7814\u7A76\u7ED3\u679C\uFF1A${resultLabel(target)}
+\u4E3B\u5F20\uFF1A${textOf(target.claim) || "\u672A\u586B\u5199"}${textOf(input.notes) ? `
+
+\u8865\u5145\u8981\u6C42\uFF1A${textOf(input.notes)}` : ""}`;
+      return request(action, text, target.id);
+    }
+    case "draw": {
+      if (!target) return block("missing-result", "\u8FD8\u6CA1\u6709\u53EF\u5173\u8054\u7684\u7814\u7A76\u7ED3\u679C\u3002", "\u5148\u5EFA\u7ACB\u6216\u5BFC\u5165\u7ED3\u679C\uFF0C\u518D\u4ECE\u8BE5\u7ED3\u679C\u5F00\u59CB\u7ED8\u56FE\u3002");
+      const gate = resultConfirmationGate(core.confirmed, target.confirmed);
+      if (gate === "core") return block("unconfirmed-core", "\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u80FD\u542F\u52A8\u6B63\u5F0F\u7ED8\u56FE\u4EFB\u52A1\u3002", "\u5148\u68C0\u67E5\u6838\u5FC3\u7ED3\u8BBA\u5E76\u5B8C\u6210\u786E\u8BA4\uFF1B\u5982\u9700\u4FEE\u6539\uFF0C\u5148\u4F18\u5316\u6587\u7AE0\u7ED3\u6784\u3002");
+      if (gate === "result") return block("unconfirmed-result", `\u201C${resultLabel(target)}\u201D\u5C1A\u672A\u786E\u8BA4\uFF0C\u4E0D\u80FD\u542F\u52A8\u6B63\u5F0F\u7ED8\u56FE\u4EFB\u52A1\u3002`, "\u5148\u786E\u8BA4\u7ED3\u679C\u4E3B\u5F20\uFF0C\u6216\u7EE7\u7EED\u4FEE\u6539\u6587\u7AE0\u7ED3\u6784\u3002");
+      const text = skillRequest("draw", `\u4E3A\u5DF2\u786E\u8BA4\u7684\u7814\u7A76\u7ED3\u679C\u5236\u5B9A\u53EF\u8FFD\u6EAF\u56FE\u4EF6\u8BA1\u5212\u3002\u5148\u786E\u8BA4\u56FE\u8981\u56DE\u7B54\u7684\u95EE\u9898\u3001\u6570\u636E\u6765\u6E90\u3001\u7EDF\u8BA1\u65B9\u6CD5\u548C\u76EE\u6807\u671F\u520A\uFF1B\u9700\u8981\u8F93\u51FA\u6295\u7A3F\u5019\u9009\u56FE\u65F6\u4FDD\u7559\u6E90\u6570\u636E\u3001\u7ED8\u56FE\u4EE3\u7801\u3001\u7269\u7406\u5C3A\u5BF8\u4E0E\u4EBA\u5DE5\u7EC8\u5BA1\u8981\u6C42\u3002\u4E0D\u8981\u58F0\u79F0\u81EA\u52A8\u8FBE\u5230\u671F\u520A\u6807\u51C6\u3002
+
+\u7814\u7A76\u7ED3\u679C\uFF1A${resultLabel(target)}
+\u4E3B\u5F20\uFF1A${textOf(target.claim) || "\u672A\u586B\u5199"}
+\u76EE\u6807\u671F\u520A\uFF1A${textOf(input.journal) || textOf(paperState?.venue) || "\u5F85\u9009\u62E9"}
+\u56FE\u4EF6\u8981\u6C42\uFF1A${textOf(input.requirements) || "\u8BF7\u5148\u63D0\u51FA\u56FE\u4EF6\u65B9\u6848\u4F9B\u786E\u8BA4\u3002"}`, textOf(input.notes));
+      return request(action, text, target.id);
+    }
+    case "write": {
+      const outline = results.map(resultLabel).join("\uFF1B") || "\u5F53\u524D\u5C1A\u65E0\u7814\u7A76\u7ED3\u679C";
+      return request(action, skillRequest("write", `\u6839\u636E\u8BBA\u6587\u4E3B\u7EBF\u8D77\u8349\u6216\u4FEE\u6539\u7A3F\u4EF6\u3002\u53EA\u628A\u5DF2\u786E\u8BA4\u4E14\u6709\u8BC1\u636E\u652F\u6301\u7684\u7ED3\u679C\u5199\u6210\u7814\u7A76\u7ED3\u8BBA\uFF1B\u672A\u786E\u8BA4\u6216\u9634\u6027\u7ED3\u679C\u8981\u51C6\u786E\u6807\u6CE8\u3002
+
+\u6838\u5FC3\u7ED3\u8BBA\uFF1A${textOf(core.claim) || "\u5C1A\u672A\u786E\u8BA4"}
+\u73B0\u6709\u7ED3\u679C\uFF1A${outline}
+\u76EE\u6807\u671F\u520A\uFF1A${textOf(input.journal) || textOf(paperState?.venue) || "\u5F85\u9009\u62E9"}
+\u5199\u4F5C\u8BED\u8A00\uFF1A${textOf(input.language) || "\u4E2D\u6587"}`, textOf(input.notes)));
+    }
+    case "slides": {
+      if (results.length === 0) return block("no-results", "\u76EE\u524D\u6CA1\u6709\u53EF\u7528\u4E8E\u6C47\u62A5\u7684\u7814\u7A76\u7ED3\u679C\u3002", "\u5148\u751F\u6210\u6216\u5BFC\u5165\u7814\u7A76\u7ED3\u679C\uFF0C\u518D\u5236\u4F5C\u6C47\u62A5\u6750\u6599\u3002");
+      const confirmed = results.filter((result) => result.confirmed === true).map(resultLabel);
+      const unconfirmed = results.filter((result) => result.confirmed !== true).map(resultLabel);
+      const text = skillRequest("slides", `\u57FA\u4E8E\u5DF2\u6709\u79D1\u7814\u8BC1\u636E\u5236\u4F5C\u6C47\u62A5 PPT\u3002\u53EA\u4F7F\u7528\u4E0B\u5217\u5DF2\u6709\u7ED3\u679C\uFF0C\u4E0D\u521B\u9020\u65B0\u5B9E\u9A8C\u7ED3\u679C\u3001\u6570\u5B57\u6216\u56FE\u8868\u3002\u672A\u786E\u8BA4\u7ED3\u679C\u5E94\u660E\u786E\u6807\u4E3A\u5F85\u9A8C\u8BC1\uFF0C\u4E0D\u4F5C\u4E3A\u5DF2\u8BC1\u5B9E\u7ED3\u8BBA\u3002
+
+\u5DF2\u786E\u8BA4\u7ED3\u679C\uFF1A${confirmed.join("\uFF1B") || "\u65E0"}
+\u5F85\u786E\u8BA4\u7ED3\u679C\uFF1A${unconfirmed.join("\uFF1B") || "\u65E0"}
+\u9875\u6570\uFF1A${textOf(input.pages) || "\u6309\u6C47\u62A5\u65F6\u957F\u5EFA\u8BAE"}
+\u98CE\u683C\uFF1A${textOf(input.style) || "\u6E05\u6670\u3001\u514B\u5236\u3001\u4FBF\u4E8E\u53E3\u5934\u8BB2\u89E3"}`, textOf(input.notes));
+      return request(action, text);
+    }
+    default:
+      return block("unknown-action", "\u65E0\u6CD5\u8BC6\u522B\u8FD9\u4E2A\u5DE5\u4F5C\u6D41\u52A8\u4F5C\u3002", "\u5237\u65B0\u5DE5\u4F5C\u53F0\u540E\u91CD\u8BD5\u3002");
+  }
+}
+function errorMessageOf(value) {
+  if (typeof value === "string") return value;
+  if (value && typeof value.message === "string") return value.message;
+  if (value && typeof value.code === "string") return value.code;
+  return "";
+}
+function submissionError(message, detail = "") {
+  const normalized = String(message || "").toLowerCase();
+  if (normalized.includes("model") || normalized.includes("\u6A21\u578B")) {
+    return { ok: false, step: "\u63D0\u4EA4\u5230\u5F53\u524D\u4F1A\u8BDD", accepted: false, message: "\u5F53\u524D\u4F1A\u8BDD\u5C1A\u672A\u914D\u7F6E\u53EF\u7528\u6A21\u578B\u3002", recovery: "\u5148\u5728\u6A21\u578B\u8BBE\u7F6E\u4E2D\u9009\u62E9\u53EF\u7528\u6A21\u578B\uFF0C\u518D\u91CD\u65B0\u63D0\u4EA4\u3002", detail };
+  }
+  return { ok: false, step: "\u63D0\u4EA4\u5230\u5F53\u524D\u4F1A\u8BDD", accepted: false, message: "DSH \u6CA1\u6709\u63A5\u6536\u8FD9\u9879\u8BF7\u6C42\u3002", recovery: "\u68C0\u67E5\u4F1A\u8BDD\u8FDE\u63A5\u540E\u5B89\u5168\u91CD\u8BD5\uFF1B\u8FD9\u6B21\u8BF7\u6C42\u5C1A\u672A\u8FDB\u5165\u7814\u7A76\u6D41\u7A0B\u3002", detail };
+}
+async function submitWorkflowRequest({ session, request: workflowRequest, signal } = {}) {
+  if (!session) {
+    return { ok: false, step: "\u9009\u62E9\u5F53\u524D\u4F1A\u8BDD", accepted: false, message: "\u5F53\u524D\u6CA1\u6709\u53EF\u63A5\u6536\u4EFB\u52A1\u7684\u4F1A\u8BDD\u3002", recovery: "\u8BF7\u5148\u5728 DSH \u4E2D\u65B0\u5EFA\u6216\u6253\u5F00\u4E00\u4E2A\u9879\u76EE\u4F1A\u8BDD\uFF0C\u518D\u91CD\u65B0\u63D0\u4EA4\u3002" };
+  }
+  const text = textOf(workflowRequest?.text);
+  const mode = workflowRequest?.mode === "steer" ? "steer" : "queue";
+  if (!text) return { ok: false, step: "\u51C6\u5907\u8BF7\u6C42", accepted: false, message: "\u8BF7\u6C42\u5185\u5BB9\u4E3A\u7A7A\uFF0C\u5C1A\u672A\u63D0\u4EA4\u3002", recovery: "\u5173\u95ED\u8868\u5355\u540E\u91CD\u65B0\u586B\u5199\uFF0C\u518D\u8BD5\u4E00\u6B21\u3002" };
+  if (typeof session.beginSubmission !== "function" || typeof session.prompt !== "function") {
+    return { ok: false, step: "\u8FDE\u63A5\u5F53\u524D\u4F1A\u8BDD", accepted: false, message: "\u5F53\u524D DSH \u4F1A\u8BDD\u4E0D\u652F\u6301\u5DE5\u4F5C\u53F0\u63D0\u4EA4\u3002", recovery: "\u8FD4\u56DE\u5BF9\u8BDD\u9875\u786E\u8BA4\u4F1A\u8BDD\u5DF2\u6253\u5F00\uFF0C\u7136\u540E\u5237\u65B0\u5DE5\u4F5C\u53F0\u3002" };
+  }
+  let content;
   try {
-    navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
+    content = [{ type: "text", text }];
+  } catch (error) {
+    return submissionError("request serialization failed", errorMessageOf(error));
   }
-}
-function fmtBytes(n) {
-  if (!n && n !== 0) return "";
-  if (n < 1024) return `${n}B`;
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)}KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)}MB`;
-}
-function fmtTime(ts) {
-  if (!ts) return "";
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString();
-}
-function normPath(p) {
-  return String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-}
-function pathInsideWorkspace(absPath, workspaceRoot) {
-  if (!absPath || !workspaceRoot) return false;
-  const p = normPath(absPath);
-  const root = normPath(workspaceRoot);
-  return p === root ? false : p.startsWith(`${root}/`);
-}
-function figurePreviewable(path) {
-  return /\.(?:png|jpe?g|gif|webp|svg)$/i.test(String(path || ""));
-}
-function figureAuditStatus(figure) {
-  return figure && figure.audit && figure.audit.overallStatus || "not-audited";
-}
-function normalizeClientState(raw) {
-  if (!raw || typeof raw !== "object") return raw;
-  const team = raw.team && typeof raw.team === "object" ? raw.team : { members: [], tasks: [] };
-  return {
-    ...raw,
-    team: {
-      ...team,
-      members: (Array.isArray(team.members) ? team.members : []).filter(
-        (m) => m && typeof m === "object" && typeof m.name === "string"
-      ),
-      tasks: normalizeTaskBoard(team.tasks)
+  let submission;
+  try {
+    submission = session.beginSubmission({ text, mode, attachments: [] });
+  } catch (error) {
+    return submissionError(errorMessageOf(error), errorMessageOf(error));
+  }
+  if (!submission || !submission.requestId || typeof submission.abandon !== "function") {
+    return submissionError("invalid submission handle", "DSH \u672A\u8FD4\u56DE\u6709\u6548\u7684\u672C\u5730\u63D0\u4EA4\u6807\u8BC6\u3002");
+  }
+  try {
+    const result = await session.prompt(content, mode, signal, submission.requestId);
+    if (result?.ok === false) {
+      return submissionError(errorMessageOf(result.error) || errorMessageOf(result), errorMessageOf(result.error));
     }
-  };
-}
-function usePollState(intervalMs) {
-  const [snap, setSnap] = (0, import_react.useState)({ data: null, error: null, loading: true, ts: 0 });
-  const tickNow = (0, import_react.useCallback)(async (aliveObj) => {
+    if (result?.failed || result?.error) {
+      return submissionError(errorMessageOf(result.error) || errorMessageOf(result), errorMessageOf(result.error));
+    }
+    if (result?.ok === true && result.value?.accepted !== true) {
+      return submissionError("host did not accept prompt", "DSH \u672A\u8FD4\u56DE accepted=true\u3002");
+    }
+    if (result?.accepted === false || result == null) {
+      return submissionError("host did not accept prompt", "DSH \u672A\u786E\u8BA4\u63A5\u6536\u8FD9\u9879\u8BF7\u6C42\u3002");
+    }
+    return { ok: true, step: "\u63D0\u4EA4\u5230\u5F53\u524D\u4F1A\u8BDD", accepted: true, message: "\u8BF7\u6C42\u5DF2\u63D0\u4EA4\u5230\u5F53\u524D\u5BF9\u8BDD\u3002" };
+  } catch (error) {
     try {
-      const res = await fetch(STATE_URL, { credentials: "same-origin" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = normalizeClientState(await res.json());
-      if (!aliveObj || aliveObj.alive) setSnap({ data, error: null, loading: false, ts: Date.now() });
-    } catch (err) {
-      if (!aliveObj || aliveObj.alive) setSnap((s) => ({ ...s, error: err, loading: false }));
+      submission.abandon();
+    } catch {
     }
-  }, []);
-  (0, import_react.useEffect)(() => {
-    const aliveObj = { alive: true };
-    let timer = null;
-    const loop = async () => {
-      await tickNow(aliveObj);
-      if (aliveObj.alive) timer = setTimeout(loop, intervalMs);
-    };
-    loop();
-    return () => {
-      aliveObj.alive = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, [intervalMs, tickNow]);
-  const refresh = (0, import_react.useCallback)(() => tickNow(null), [tickNow]);
-  return { ...snap, refresh };
-}
-function DataGate({ state, children, fallback }) {
-  if (state.loading && !state.data) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u52A0\u8F7D\u4E2D\u2026" });
-  if (!state.data) {
-    if (state.error) {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FDE\u63A5\u6570\u636E\u901A\u9053\u5931\u8D25\uFF08web \u6863\u6848\u8BF7\u786E\u8BA4\u670D\u52A1\u5DF2\u542F\u52A8\uFF09\u3002" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { textAlign: "center", marginBottom: 8 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: state.refresh, children: "\u7ACB\u5373\u91CD\u8BD5" }) }),
-        fallback
-      ] });
-    }
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u684C\u9762\u7248\u6570\u636E\u9762\u677F\u5F00\u53D1\u4E2D\uFF08\u539F\u751F\u56E2\u961F\u9762\u677F\u4E0E\u5168\u90E8\u56E2\u961F\u5DE5\u5177\u53EF\u7528\uFF09\u3002web \u6863\u6848\u4E0B\u6B64\u5904\u5C55\u793A\u5B9E\u65F6\u6570\u636E\u3002" }),
-      fallback
-    ] });
+    return submissionError(errorMessageOf(error), errorMessageOf(error));
   }
-  const content = typeof children === "function" ? children() : children;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-    state.error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: { color: C.faint, fontSize: 10, margin: "0 0 4px" }, children: [
-      "\u5237\u65B0\u5931\u8D25\uFF08",
-      String(state.error && state.error.message),
-      "\uFF09\uFF0C\u4EE5\u4E0B\u4E3A\u6700\u8FD1\u7F13\u5B58\u3002 ",
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { onClick: state.refresh, children: "\u91CD\u8BD5" })
-    ] }),
-    content
-  ] });
 }
-function Empty({ text, children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { color: C.muted, fontSize: 12, margin: "4px 0", lineHeight: 1.6 }, children: children != null ? children : text });
+
+// client-src/workbench/styles.js
+var import_react = __toESM(require("react"), 1);
+var WORKBENCH_CSS = `
+.sci-workbench{--sci-fg:var(--dsw-alias-label-primary,inherit);--sci-muted:var(--dsw-alias-label-secondary,#737b88);--sci-faint:var(--dsw-alias-label-tertiary,#9299a4);--sci-accent:var(--dsw-alias-state-business-primary,#3568c8);--sci-good:var(--dsw-alias-state-success-primary,#16836b);--sci-warn:var(--dsw-alias-state-warn-primary,#b77912);--sci-bad:var(--dsw-alias-state-error-primary,#c34236);--sci-bg:var(--dsw-alias-bg-layer-0,transparent);--sci-card:var(--dsw-alias-bg-layer-1,rgba(127,127,127,.06));--sci-raised:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.11));--sci-border:var(--dsw-alias-border-l1,rgba(127,127,127,.2));--sci-line:var(--dsw-alias-separator-primary,rgba(127,127,127,.14));box-sizing:border-box;color:var(--sci-fg);font-family:inherit;font-size:14px;line-height:1.55;min-height:100%;background:var(--sci-bg)}
+.sci-workbench *{box-sizing:border-box}.sci-wb-shell{min-height:100%;padding:24px clamp(16px,3vw,40px) 40px}.sci-wb-content{max-width:1400px;margin:0 auto}.sci-wb-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 auto 22px;max-width:1400px}.sci-wb-brand{display:flex;align-items:center;gap:12px;min-width:0}.sci-wb-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:color-mix(in srgb,var(--sci-accent) 12%,transparent);color:var(--sci-accent)}.sci-wb-brand h1{font-size:21px;line-height:1.2;margin:0;font-weight:650;letter-spacing:-.02em}.sci-wb-subtitle{font-size:13px;color:var(--sci-muted);margin-top:4px}.sci-wb-head-actions{display:flex;align-items:center;gap:10px}.sci-wb-nav{display:flex;gap:4px;padding:4px;border:1px solid var(--sci-border);border-radius:12px;background:var(--sci-card);margin-bottom:18px;overflow:auto}.sci-wb-nav button{border:0;background:transparent;color:var(--sci-muted);font:inherit;font-weight:550;padding:9px 15px;border-radius:9px;white-space:nowrap;cursor:pointer}.sci-wb-nav button[aria-current=true]{background:var(--sci-raised);color:var(--sci-fg);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.sci-wb-content,.sci-stack,.sci-grid,.sci-grid>*{min-width:0}.sci-stack{grid-template-columns:minmax(0,1fr)}
+.sci-panel{border:1px solid var(--sci-border);border-radius:14px;background:var(--sci-card);padding:20px}.sci-panel + .sci-panel{margin-top:16px}.sci-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.sci-panel-heading h2,.sci-panel-heading h3{margin:0;font-size:17px;line-height:1.3}.sci-panel-heading p{margin:4px 0 0;color:var(--sci-muted);font-size:13px}.sci-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}.sci-col-8{grid-column:span 8}.sci-col-4{grid-column:span 4}.sci-col-6{grid-column:span 6}.sci-col-12{grid-column:span 12}.sci-stack{display:grid;gap:16px}.sci-muted{color:var(--sci-muted)}.sci-small{font-size:12px;color:var(--sci-muted)}.sci-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--sci-muted);font-weight:650}.sci-title{font-size:24px;line-height:1.25;letter-spacing:-.02em;margin:0 0 6px}.sci-copy{font-size:14px;color:var(--sci-muted);margin:0}.sci-rule{border:0;border-top:1px solid var(--sci-line);margin:16px 0}.sci-button{display:inline-flex;justify-content:center;align-items:center;gap:8px;min-height:38px;padding:8px 13px;border:1px solid var(--sci-border);border-radius:9px;background:transparent;color:var(--sci-fg);font:inherit;font-weight:560;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}.sci-button:hover:not(:disabled){background:var(--sci-raised);border-color:color-mix(in srgb,var(--sci-accent) 35%,var(--sci-border))}.sci-button:focus-visible,.sci-wb-nav button:focus-visible,.sci-field input:focus-visible,.sci-field textarea:focus-visible,.sci-field select:focus-visible{outline:2px solid var(--sci-accent);outline-offset:2px}.sci-button:active:not(:disabled){transform:translateY(1px)}.sci-button:disabled{opacity:.55;cursor:not-allowed}.sci-button-primary{background:var(--sci-accent);border-color:var(--sci-accent);color:white}.sci-button-primary:hover:not(:disabled){background:color-mix(in srgb,var(--sci-accent) 87%,#111);border-color:var(--sci-accent);color:white}.sci-button-quiet{border-color:transparent}.sci-button-small{min-height:32px;padding:5px 9px;font-size:13px}.sci-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--sci-border);border-radius:999px;padding:3px 9px;font-size:12px;white-space:nowrap;color:var(--sci-muted);background:var(--sci-card)}.sci-badge-good{color:var(--sci-good);border-color:color-mix(in srgb,var(--sci-good) 30%,var(--sci-border));background:color-mix(in srgb,var(--sci-good) 8%,transparent)}.sci-badge-warn{color:var(--sci-warn);border-color:color-mix(in srgb,var(--sci-warn) 30%,var(--sci-border));background:color-mix(in srgb,var(--sci-warn) 8%,transparent)}.sci-badge-bad{color:var(--sci-bad);border-color:color-mix(in srgb,var(--sci-bad) 30%,var(--sci-border));background:color-mix(in srgb,var(--sci-bad) 8%,transparent)}.sci-stat-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.sci-stat{padding:14px;border:1px solid var(--sci-border);border-radius:12px;background:var(--sci-card)}.sci-stat strong{display:block;font-size:22px;line-height:1.2;font-weight:650}.sci-stat span{display:block;color:var(--sci-muted);font-size:12px;margin-top:5px}.sci-stage-track{display:grid;grid-template-columns:repeat(6,minmax(135px,1fr));gap:0;overflow:auto;padding:2px 0 6px}.sci-stage{position:relative;min-width:135px;padding:4px 14px 8px 0}.sci-stage:not(:last-child):after{content:"";position:absolute;height:2px;left:26px;right:6px;top:14px;background:var(--sci-border)}.sci-stage[data-state=completed]:after{background:color-mix(in srgb,var(--sci-good) 65%,var(--sci-border))}.sci-stage-dot{position:relative;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--sci-border);background:var(--sci-card);color:var(--sci-muted);font-size:12px}.sci-stage[data-state=current] .sci-stage-dot{background:var(--sci-accent);border-color:var(--sci-accent);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--sci-accent) 13%,transparent)}.sci-stage[data-state=completed] .sci-stage-dot{color:var(--sci-good);border-color:var(--sci-good)}.sci-stage-label{font-size:12px;margin-top:8px;color:var(--sci-muted)}.sci-stage[data-state=current] .sci-stage-label{font-weight:650;color:var(--sci-fg)}
+.sci-hero{padding:24px;border:1px solid color-mix(in srgb,var(--sci-accent) 24%,var(--sci-border));border-radius:16px;background:color-mix(in srgb,var(--sci-accent) 5%,var(--sci-card))}.sci-empty{min-height:180px;display:grid;place-items:center;text-align:center;padding:28px}.sci-empty h2,.sci-empty h3{margin:0 0 8px}.sci-empty p{max-width:620px;margin:0 auto 16px;color:var(--sci-muted)}.sci-step-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}.sci-step{border:1px solid var(--sci-border);border-radius:11px;padding:12px;background:var(--sci-card);text-align:left}.sci-step b{display:block;font-size:13px}.sci-step span{font-size:12px;color:var(--sci-muted)}.sci-field{display:grid;gap:6px;margin:12px 0}.sci-field label{font-size:13px;font-weight:600}.sci-field input,.sci-field textarea,.sci-field select{width:100%;padding:10px 11px;border:1px solid var(--sci-border);border-radius:9px;background:var(--sci-bg);color:var(--sci-fg);font:inherit;resize:vertical}.sci-field textarea{min-height:88px}.sci-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}.sci-modal-backdrop{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(12,17,27,.46)}.sci-modal{width:min(620px,100%);max-height:min(90vh,900px);overflow:auto;padding:22px;border-radius:16px;border:1px solid var(--sci-border);background:var(--dsw-alias-bg-layer-0,#fff);box-shadow:0 20px 70px rgba(0,0,0,.24)}.sci-modal h2{margin:0;font-size:20px}.sci-error-box{padding:12px;border:1px solid color-mix(in srgb,var(--sci-bad) 35%,var(--sci-border));border-radius:10px;background:color-mix(in srgb,var(--sci-bad) 6%,transparent);color:var(--sci-fg);margin-top:12px}.sci-success-box{padding:12px;border:1px solid color-mix(in srgb,var(--sci-good) 35%,var(--sci-border));border-radius:10px;background:color-mix(in srgb,var(--sci-good) 6%,transparent);margin:12px 0}.sci-result-card{border:1px solid var(--sci-border);border-radius:13px;background:var(--sci-card);padding:17px}.sci-result-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.sci-result-card h3{font-size:16px;margin:0 0 5px}.sci-result-claim{color:var(--sci-muted);margin:8px 0 14px}.sci-readiness{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.sci-readiness-item{border:1px solid var(--sci-border);border-radius:9px;padding:8px;font-size:12px}.sci-readiness-item b{display:block;font-weight:600}.sci-result-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.sci-note-list{padding-left:20px;margin:8px 0;color:var(--sci-muted)}.sci-note-list li{margin:4px 0}.sci-members{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.sci-member{border:1px solid var(--sci-border);border-radius:11px;padding:13px}.sci-member h3{font-size:14px;margin:0}.sci-member p{font-size:12px;color:var(--sci-muted);margin:5px 0 0}.sci-task-graph{position:relative;overflow:auto;min-height:150px}.sci-task-canvas{position:relative;min-height:180px}.sci-task-node{position:absolute;width:188px;min-height:72px;padding:10px;border:1px solid var(--sci-border);border-radius:10px;background:var(--dsw-alias-bg-layer-1,rgba(127,127,127,.08));color:var(--sci-fg);text-align:left;z-index:1}.sci-task-node:hover{border-color:var(--sci-accent)}.sci-task-node strong{display:block;font-size:13px}.sci-task-node span{display:block;font-size:11px;color:var(--sci-muted);margin-top:4px}.sci-task-lines{position:absolute;inset:0;pointer-events:none;overflow:visible}.sci-task-line{stroke:var(--sci-muted);stroke-width:1.5;fill:none;opacity:.7}.sci-task-list{display:grid;gap:8px}.sci-task-row{display:grid;grid-template-columns:minmax(200px,2fr) minmax(100px,1fr) auto;gap:12px;align-items:center;border-bottom:1px solid var(--sci-line);padding:10px 0}.sci-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}.sci-figure{border:1px solid var(--sci-border);border-radius:12px;overflow:hidden;background:var(--sci-card);cursor:pointer}.sci-figure img{width:100%;height:180px;object-fit:contain;background:var(--sci-raised);display:block}.sci-figure-copy{padding:11px}.sci-figure-copy strong{display:block;font-size:13px}.sci-figure-copy span{display:block;color:var(--sci-muted);font-size:12px;margin-top:4px}.sci-group{margin-top:24px}.sci-group h3{font-size:15px;margin:0 0 10px}.sci-file-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:9px}.sci-file{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--sci-border);border-radius:10px;padding:11px}.sci-file strong{font-size:13px;display:block;word-break:break-word}.sci-expert-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.sci-expert-card{border:1px solid var(--sci-border);border-radius:12px;background:var(--sci-card);padding:16px}.sci-expert-card h3{font-size:15px;margin:0}.sci-expert-card p{font-size:13px;color:var(--sci-muted);margin:8px 0}.sci-risk{font-size:12px;padding:9px;border-radius:9px;background:var(--sci-raised);margin-top:10px}.sci-toast{position:fixed;right:22px;bottom:22px;z-index:9000;max-width:420px;padding:12px 16px;border:1px solid var(--sci-border);border-radius:11px;background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 8px 30px rgba(0,0,0,.15)}.sci-quick{padding:16px}.sci-quick .sci-panel{padding:15px}.sci-quick .sci-title{font-size:18px}
+.sci-tool-list{display:grid;gap:8px;margin-top:10px}.sci-tool-row{display:grid;gap:3px;border-top:1px solid var(--sci-line);padding:8px 0;font-size:12px;color:var(--sci-muted)}.sci-tool-row b{font-size:13px;color:var(--sci-fg)}
+@media(max-width:900px){.sci-col-8,.sci-col-4,.sci-col-6{grid-column:span 12}.sci-wb-header{align-items:flex-start}.sci-stat-row{grid-template-columns:repeat(2,1fr)}}@media(max-width:640px){.sci-wb-shell{padding:16px 12px 28px}.sci-wb-header{flex-direction:column}.sci-wb-head-actions{width:100%;flex-wrap:wrap}.sci-wb-nav button{padding:8px 11px}.sci-panel{padding:15px}.sci-stage-track{grid-template-columns:repeat(6,120px)}.sci-step-row{grid-template-columns:1fr}.sci-readiness{grid-template-columns:repeat(2,1fr)}.sci-task-row{grid-template-columns:1fr}.sci-stat strong{font-size:19px}}
+@media(prefers-reduced-motion:reduce){.sci-workbench *, .sci-workbench *:before,.sci-workbench *:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+`;
+function WorkbenchStyles() {
+  return import_react.default.createElement("style", { id: "dsh-science-workbench-styles" }, WORKBENCH_CSS);
 }
-function Dot({ color, pulse, size = 8 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-    "span",
-    {
-      style: {
-        display: "inline-block",
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: color,
-        flexShrink: 0,
-        animation: pulse ? "dsh-sci-pulse 1.6s ease-in-out infinite" : void 0
-      }
-    }
-  );
+
+// client-src/workbench/components/ui.jsx
+var import_react2 = __toESM(require("react"), 1);
+var import_jsx_runtime = require("react/jsx-runtime");
+function Button({ children, primary = false, small = false, quiet = false, ...props }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { ...props, className: ["sci-button", primary && "sci-button-primary", small && "sci-button-small", quiet && "sci-button-quiet", props.className].filter(Boolean).join(" "), children });
 }
-function MascotAvatar({ file, emoji, size = 26, overlay, style }) {
-  const [failed, setFailed] = (0, import_react.useState)(false);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { position: "relative", display: "inline-flex", flexShrink: 0, width: size, height: size, ...style }, children: [
-    failed || !file ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { width: "100%", textAlign: "center", fontSize: Math.round(size * 0.6), lineHeight: `${size}px` }, children: emoji || "\u{1F464}" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "img",
-      {
-        src: mascotUrl(file),
-        alt: "",
-        "aria-hidden": true,
-        width: size,
-        height: size,
-        onError: () => setFailed(true),
-        style: { display: "block", width: size, height: size }
-      }
-    ),
-    overlay
-  ] });
-}
-function ActionOverlay({ file, avatarSize = 26 }) {
-  const [failed, setFailed] = (0, import_react.useState)(false);
-  if (failed || !file) return null;
-  const s = Math.max(10, Math.round(avatarSize * 0.48));
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-    "img",
-    {
-      src: mascotUrl(file),
-      alt: "",
-      "aria-hidden": true,
-      onError: () => setFailed(true),
-      style: { position: "absolute", right: -4, bottom: -3, width: s, height: s, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.18))" }
-    }
-  );
-}
-function Panel({ title, children, extra }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { margin: "10px 0" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: `1px solid ${C.divider}`, paddingBottom: 3, marginBottom: 6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { style: { margin: 0, fontSize: 12, color: C.fg, letterSpacing: 0.3 }, children: title }),
-      extra
+function Panel({ title, subtitle, action, children, className = "" }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: `sci-panel ${className}`, children: [
+    (title || subtitle || action) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", { className: "sci-panel-heading", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        title && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { children: title }),
+        subtitle && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: subtitle })
+      ] }),
+      action
     ] }),
     children
   ] });
 }
-function DepChip({ id }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: {
-    display: "inline-block",
-    padding: "0 6px",
-    marginLeft: 4,
-    borderRadius: 8,
-    border: `1px solid ${C.border}`,
-    background: C.chip,
-    fontSize: 10,
-    lineHeight: "16px",
-    color: C.muted,
-    flexShrink: 0
-  }, children: id });
+function Badge({ children, tone = "default" }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: `sci-badge ${tone === "good" ? "sci-badge-good" : tone === "warn" ? "sci-badge-warn" : tone === "bad" ? "sci-badge-bad" : ""}`, children });
 }
-function ResBadge({ id }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: {
-    display: "inline-block",
-    padding: "0 6px",
-    marginLeft: 4,
-    borderRadius: 8,
-    border: `1px solid ${C.accent}`,
-    fontSize: 10,
-    lineHeight: "16px",
-    color: C.accent,
-    flexShrink: 0,
-    fontFamily: "ui-monospace, monospace"
-  }, children: id });
+function EmptyState({ title, children, action, secondary }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sci-empty", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { children: title }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-result-actions", style: { justifyContent: "center" }, children: [
+      action,
+      secondary
+    ] })
+  ] }) });
 }
-function CmdChip({ cmd }) {
-  const [copied, setCopied] = (0, import_react.useState)(false);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-    "span",
-    {
-      onClick: () => {
-        if (copyText(cmd)) {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        }
-      },
-      title: `\u70B9\u51FB\u590D\u5236\u547D\u4EE4\uFF1A${cmd}`,
-      style: {
-        display: "inline-block",
-        padding: "1px 8px",
-        borderRadius: 9,
-        border: `1px solid ${C.border}`,
-        background: C.chip,
-        fontSize: 10,
-        lineHeight: "16px",
-        color: C.muted,
-        cursor: "pointer",
-        fontFamily: "ui-monospace, monospace",
-        flexShrink: 0
-      },
-      children: copied ? "\u5DF2\u590D\u5236 \u2713" : cmd
-    }
-  );
-}
-function FigureAuditBadge({ figure }) {
-  const status = figureAuditStatus(figure);
-  const color = FIGURE_AUDIT_COLOR[status] || C.faint;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-    "span",
-    {
-      "data-figure-audit": status,
-      title: "\u81EA\u52A8\u524D\u68C0\u4E0D\u66FF\u4EE3\u79D1\u5B66\u6B63\u786E\u6027\u4E0E\u671F\u520A\u63A5\u6536\u5224\u65AD",
-      style: { fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px", flexShrink: 0 },
-      children: FIGURE_AUDIT_LABEL[status] || status
-    }
-  );
-}
-function FigureAuditDetails({ figure }) {
-  const audit = figure && figure.audit;
-  if (!audit) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { onClick: (e) => e.stopPropagation(), style: { marginTop: 5, display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap", fontSize: 10, color: C.warn }, children: [
-      "\u5C1A\u672A\u6267\u884C\u6295\u7A3F\u524D\u68C0 ",
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_figure_audit figure_id=${figure.id}` })
-    ] });
-  }
-  const measurements = audit.measurements || {};
-  const summary = audit.summary || {};
-  const size = measurements.targetWidthMm ? `${measurements.targetWidthMm}${measurements.targetHeightMm ? ` \xD7 ${measurements.targetHeightMm}` : ""} mm` : "\u672A\u58F0\u660E\u6700\u7EC8\u5C3A\u5BF8";
-  const resolution = measurements.kind === "vector" ? "\u77E2\u91CF" : measurements.effectiveDpi ? `${measurements.effectiveDpi} dpi` : "dpi \u672A\u77E5";
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { onClick: (e) => e.stopPropagation(), style: { marginTop: 5, fontSize: 10, color: C.muted }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("summary", { style: { cursor: "pointer", color: C.fg }, children: [
-      audit.profile && audit.profile.label ? audit.profile.label : "\u901A\u7528\u79D1\u7814\u56FE\u4EF6",
-      " \xB7 ",
-      size,
-      " \xB7 ",
-      resolution,
-      " \xB7 ",
-      summary.pass || 0,
-      " \u901A\u8FC7 / ",
-      summary.warn || 0,
-      " \u63D0\u9192 / ",
-      summary.fail || 0,
-      " \u5931\u8D25"
+function Field({ label, name, value, onChange, required = false, placeholder = "", rows = 0, type = "text" }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-field", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { htmlFor: `sci-field-${name}`, children: [
+      label,
+      required ? " *" : ""
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, borderLeft: `2px solid ${FIGURE_AUDIT_COLOR[audit.overallStatus] || C.border}`, paddingLeft: 7 }, children: [
-      (Array.isArray(audit.checks) ? audit.checks : []).map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { margin: "3px 0", color: item.status === "fail" ? C.err : item.status === "warn" ? C.warn : item.status === "pass" ? C.ok : C.muted }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [
-          item.status === "pass" ? "\u2713" : item.status === "fail" ? "\u2715" : item.status === "warn" ? "!" : "\u4EBA\u5DE5",
-          " ",
-          item.label
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted }, children: [
+    rows ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", { id: `sci-field-${name}`, value: value || "", onChange: (event) => onChange(name, event.target.value), placeholder, rows, required }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", { id: `sci-field-${name}`, type, value: value || "", onChange: (event) => onChange(name, event.target.value), placeholder, required })
+  ] });
+}
+var ACTION_META = {
+  explore: { title: "\u5F00\u59CB\u63A2\u7D22", fields: [["question", "\u7814\u7A76\u95EE\u9898", true, "\u4F8B\u5982\uFF1A\u67D0\u86CB\u767D\u53D8\u4F53\u5982\u4F55\u5F71\u54CD\u7EC6\u80DE\u5E94\u6FC0\u53CD\u5E94\uFF1F", 3], ["scope", "\u7814\u7A76\u8303\u56F4", false, "\u7269\u79CD\u3001\u6A21\u578B\u6216\u65F6\u95F4\u8303\u56F4", 2], ["existingData", "\u5DF2\u6709\u6570\u636E", false, "\u5DF2\u6709\u6837\u672C\u3001\u6570\u636E\u7C7B\u578B\u6216\u89C2\u5BDF", 2], ["constraints", "\u7B97\u529B\u4E0E\u65F6\u95F4\u7EA6\u675F", false, "\u4F8B\u5982\uFF1A\u5355\u5361 24 GB\uFF0C\u4E09\u5468\u5185\u5B8C\u6210", 2], ["notes", "\u8865\u5145\u8981\u6C42", false, "", 2]] },
+  import_results: { title: "\u5BFC\u5165\u5DF2\u6709\u7ED3\u679C", fields: [["source", "\u7ED3\u679C\u6765\u6E90\u6216\u6458\u8981", true, "\u7C98\u8D34\u7ED3\u679C\u6458\u8981\uFF0C\u6216\u8BF4\u660E\u5DE5\u4F5C\u533A\u6587\u4EF6\u8DEF\u5F84", 4], ["notes", "\u8865\u5145\u8BF4\u660E", false, "\u5E0C\u671B\u4FDD\u7559\u7684\u80CC\u666F\u6216\u8FB9\u754C", 2]] },
+  literature: { title: "\u6269\u5C55\u6587\u732E\u63A2\u7D22", fields: [["question", "\u7814\u7A76\u95EE\u9898", false, "\u53EF\u4F7F\u7528\u5F53\u524D\u8BBA\u6587\u4E3B\u7EBF", 3], ["notes", "\u8865\u5145\u8981\u6C42", false, "\u65F6\u95F4\u8303\u56F4\u3001\u6570\u636E\u5E93\u6216\u6587\u732E\u7C7B\u578B", 2]] },
+  generate_structure: { title: "\u751F\u6210\u6587\u7AE0\u7ED3\u6784", fields: [["notes", "\u8865\u5145\u8981\u6C42", false, "\u4F8B\u5982\uFF1A\u4F18\u5148\u7EC4\u7EC7\u73B0\u6709\u7684\u9634\u6027\u7ED3\u679C", 3]] },
+  optimize_structure: { title: "\u4F18\u5316\u6587\u7AE0\u7ED3\u6784", fields: [["guidance", "\u8C03\u6574\u4F9D\u636E", true, "\u5199\u660E\u65B0\u8BC1\u636E\u3001\u903B\u8F91\u95EE\u9898\u6216\u5E0C\u671B\u8C03\u6574\u7684\u90E8\u5206", 4], ["notes", "\u8865\u5145\u8981\u6C42", false, "", 2]] },
+  confirm: { title: "\u8BF7\u6C42\u786E\u8BA4\u7814\u7A76\u7ED3\u8BBA", fields: [["notes", "\u9700\u8981\u8BF4\u660E\u7684\u4F9D\u636E", false, "\u8865\u5145\u786E\u8BA4\u65F6\u9700\u8981\u5C55\u793A\u7684\u80CC\u666F", 3]] },
+  refine_tasks: { title: "\u7EC6\u5316\u6267\u884C\u4EFB\u52A1", fields: [["notes", "\u6267\u884C\u7EA6\u675F", false, "\u8D44\u6E90\u3001\u671F\u9650\u3001\u65B9\u6CD5\u6216\u5B8C\u6210\u5224\u636E", 3]] },
+  draw: { title: "\u5F00\u59CB\u7ED8\u56FE", fields: [["journal", "\u76EE\u6807\u671F\u520A", false, "\u671F\u520A\u540D\u79F0\u6216\u6682\u672A\u786E\u5B9A", 0], ["requirements", "\u56FE\u4EF6\u8981\u6C42", false, "\u56FE\u8981\u56DE\u7B54\u7684\u95EE\u9898\u3001\u73B0\u6709\u6570\u636E\u3001\u7EDF\u8BA1\u65B9\u6CD5\u548C\u683C\u5F0F", 4], ["notes", "\u8865\u5145\u8981\u6C42", false, "", 2]] },
+  write: { title: "\u64B0\u5199\u8BBA\u6587", fields: [["journal", "\u76EE\u6807\u671F\u520A", false, "\u671F\u520A\u540D\u79F0\u6216\u6682\u672A\u786E\u5B9A", 0], ["language", "\u5199\u4F5C\u8BED\u8A00", false, "\u4E2D\u6587\u6216 English", 0], ["notes", "\u8865\u5145\u8981\u6C42", false, "\u9700\u8981\u4F18\u5148\u8D77\u8349\u7684\u90E8\u5206\u6216\u683C\u5F0F\u8981\u6C42", 4]] },
+  slides: { title: "\u5236\u4F5C\u6C47\u62A5 PPT", fields: [["pages", "\u9875\u6570\u6216\u6C47\u62A5\u65F6\u957F", false, "\u4F8B\u5982\uFF1A12 \u9875 / 15 \u5206\u949F", 0], ["style", "\u8868\u8FBE\u98CE\u683C", false, "\u6E05\u6670\u3001\u514B\u5236\u3001\u4FBF\u4E8E\u53E3\u5934\u8BB2\u89E3", 2], ["notes", "\u8865\u5145\u8981\u6C42", false, "", 2]] }
+};
+function ActionDialog({ action, target, onClose, onSubmit, busy = false, error = null, onOpenConversation, onCopyDiagnostic }) {
+  const meta = ACTION_META[action] || ACTION_META.explore;
+  const [values, setValues] = (0, import_react2.useState)({});
+  const modalRef = (0, import_react2.useRef)(null);
+  (0, import_react2.useEffect)(() => {
+    modalRef.current?.querySelector("textarea,input")?.focus();
+  }, []);
+  const change = (name, value) => setValues((current) => ({ ...current, [name]: value }));
+  const onKeyDown = (event) => {
+    if (event.key === "Escape" && !busy) onClose();
+    if (event.key === "Tab" && modalRef.current) {
+      const items = [...modalRef.current.querySelectorAll("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)")];
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sci-modal-backdrop", onMouseDown: (event) => {
+    if (event.target === event.currentTarget && !busy) onClose();
+  }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "sci-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "sci-dialog-title", ref: modalRef, onKeyDown, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-panel-heading", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { id: "sci-dialog-title", children: meta.title }),
+        target && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { children: [
+          "\u5173\u8054\u7814\u7A76\u7ED3\u679C\uFF1A",
+          target.title
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { quiet: true, small: true, "aria-label": "\u5173\u95ED", onClick: onClose, disabled: busy, children: "\u5173\u95ED" })
+    ] }),
+    meta.fields.map(([name, label, required, placeholder, rows]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { name, label, required, placeholder, rows, value: values[name], onChange: change }, name)),
+    error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-error-box", role: "alert", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: error.message || "\u8BF7\u6C42\u672A\u63D0\u4EA4" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: error.recovery }),
+      error.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: "\u9519\u8BEF\u8BE6\u60C5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: error.detail })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-result-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { small: true, onClick: () => onSubmit(values), disabled: busy, children: "\u91CD\u65B0\u63D0\u4EA4" }),
+        onOpenConversation && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { small: true, onClick: onOpenConversation, children: "\u6253\u5F00\u5BF9\u8BDD" }),
+        onCopyDiagnostic && error.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { small: true, onClick: () => onCopyDiagnostic(error), children: "\u590D\u5236\u8BCA\u65AD\u4FE1\u606F" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-form-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: onClose, disabled: busy, children: "\u53D6\u6D88" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { primary: true, onClick: () => onSubmit(values), disabled: busy, children: busy ? "\u6B63\u5728\u63D0\u4EA4\u2026" : "\u63D0\u4EA4\u5230\u5F53\u524D\u5BF9\u8BDD" })
+    ] })
+  ] }) });
+}
+function StageTrack({ stages = [] }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sci-stage-track", "aria-label": "\u8BBA\u6587\u9636\u6BB5", children: stages.map((stage, index) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sci-stage", "data-state": stage.state, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sci-stage-dot", children: stage.state === "completed" ? "\u2713" : index + 1 }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sci-stage-label", children: stage.label })
+  ] }, stage.id)) });
+}
+function StatusMessage({ tone = "default", children }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: tone === "error" ? "sci-error-box" : tone === "success" ? "sci-success-box" : "sci-panel", role: tone === "error" ? "alert" : void 0, children });
+}
+
+// client-src/workbench/PaperSpinePage.jsx
+var import_react3 = __toESM(require("react"), 1);
+var import_jsx_runtime2 = require("react/jsx-runtime");
+var READINESS_LABELS = [["scientific", "\u79D1\u5B66\u8BC1\u636E"], ["manuscript", "\u7A3F\u4EF6\u5C31\u7EEA"], ["submission", "\u6295\u7A3F\u5C31\u7EEA"]];
+function readinessText(value) {
+  if (!value) return "\u5F85\u6838\u5BF9";
+  if (value.state === "ready" || value.state === "completed") return "\u5DF2\u5177\u5907";
+  if (value.state === "in_progress") return "\u8FDB\u884C\u4E2D";
+  return "\u5F85\u5B8C\u5584";
+}
+function ResultCard({ result, onAction }) {
+  const [expanded, setExpanded] = (0, import_react3.useState)(false);
+  const gate = resultConfirmationGate(result.coreConfirmed, result.confirmed);
+  const gatesOpen = gate === null;
+  const unconfirmedReason = gate === "core" ? "\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA\u5C1A\u672A\u786E\u8BA4\uFF1B\u5148\u786E\u8BA4\u6838\u5FC3\u7ED3\u8BBA\u540E\uFF0C\u624D\u80FD\u7EC6\u5316\u6B63\u5F0F\u4EFB\u52A1\u6216\u542F\u52A8\u6B63\u5F0F\u7ED8\u56FE\u3002" : `\u201C${result.title}\u201D\u5C1A\u672A\u786E\u8BA4\uFF1B\u5148\u786E\u8BA4\u8BE5\u7814\u7A76\u7ED3\u679C\u540E\uFF0C\u624D\u80FD\u7EC6\u5316\u6B63\u5F0F\u4EFB\u52A1\u6216\u542F\u52A8\u6B63\u5F0F\u7ED8\u56FE\u3002`;
+  const run = (action) => onAction(action, result.id);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: "sci-result-card", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-result-top", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { children: result.title }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-small", children: [
+          result.statusLabel,
           " \xB7 ",
-          item.observed
-        ] }),
-        (item.status === "fail" || item.status === "warn") && item.action && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.fg, paddingLeft: 12 }, children: [
-          "\u64CD\u4F5C\uFF1A",
-          item.action
+          result.confirmed ? "\u5F53\u524D\u4FEE\u8BA2\u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4"
         ] })
-      ] }, item.id)),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 5, color: C.faint }, children: audit.disclaimer }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_figure_audit figure_id=${figure.id}` }),
-        audit.automaticStatus === "ready-for-manual-review" && audit.overallStatus !== "approved" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\u6700\u7EC8\u5C3A\u5BF8\u6838\u5BF9\u540E\uFF0C\u518D\u7531\u7814\u7A76\u8005\u63D0\u4EA4\u4EBA\u5DE5\u7ED3\u8BBA\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Badge, { tone: result.confirmed ? "good" : "warn", children: result.confirmed ? "\u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4" })
+    ] }),
+    result.claim && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "sci-result-claim", children: result.claim }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "sci-readiness", style: { gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))" }, children: READINESS_LABELS.map(([key, label]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-readiness-item", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: readinessText(result.readiness?.[key]) })
+    ] }, key)) }),
+    result.requiredItems.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { className: "sci-small", children: "\u5FC5\u987B\u5904\u7406" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { className: "sci-note-list", children: result.requiredItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("li", { children: item }, item)) })
+    ] }),
+    result.recommendedItems.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { className: "sci-small", children: "\u5EFA\u8BAE\u5904\u7406" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { className: "sci-note-list", children: result.recommendedItems.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("li", { children: item }, item)) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-result-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: () => setExpanded((value) => !value), "aria-expanded": expanded, children: expanded ? "\u6536\u8D77\u8BE6\u60C5" : "\u67E5\u770B\u8BE6\u60C5" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: () => run("optimize_structure"), children: "\u4F18\u5316\u7ED3\u6784" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, disabled: !gatesOpen, title: !gatesOpen ? unconfirmedReason : void 0, onClick: () => run("refine_tasks"), children: "\u7EC6\u5316\u4EFB\u52A1" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, disabled: !gatesOpen, title: !gatesOpen ? unconfirmedReason : void 0, onClick: () => run("draw"), children: "\u5F00\u59CB\u7ED8\u56FE" }),
+      !result.confirmed && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, primary: true, onClick: () => run("confirm"), children: "\u786E\u8BA4\u5E76\u7EE7\u7EED" })
+    ] }),
+    !gatesOpen && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "sci-small", role: "note", style: { marginTop: 8 }, children: unconfirmedReason }),
+    expanded && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-small", style: { marginTop: 14 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "Result \u7F16\u53F7\uFF1A" }),
+        result.id,
+        "\u3000",
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u4FEE\u8BA2\uFF1A" }),
+        result.revision || 1
+      ] }),
+      result.purpose && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u76EE\u7684\uFF1A" }),
+        result.purpose
+      ] }),
+      result.direction && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u7ED3\u679C\u65B9\u5411\uFF1A" }),
+        result.direction
+      ] }),
+      result.notes && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u5907\u6CE8\uFF1A" }),
+        result.notes
+      ] }),
+      result.evidence?.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u8BC1\u636E\u8BB0\u5F55\uFF1A" }),
+        result.evidence.map((row, index) => row?.title || row?.source || row?.sourceLocator || `\u8BC1\u636E ${index + 1}`).join("\uFF1B")
+      ] }),
+      result.references?.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "\u53C2\u8003\u6587\u732E\uFF1A" }),
+        result.references.map((row) => row?.title || row?.doi || row?.id || "\u672A\u547D\u540D\u6587\u732E").join("\uFF1B")
       ] })
     ] })
   ] });
 }
-function ViewToggle({ view, graphValue, listValue, graphLabel, listLabel, onChange }) {
-  const chip = (active) => ({
-    padding: "1px 8px",
-    borderRadius: 9,
-    border: `1px solid ${active ? C.accent : C.border}`,
-    background: active ? C.accent : "transparent",
-    color: active ? "#fff" : C.muted,
-    fontSize: 10,
-    lineHeight: "16px",
-    cursor: "pointer",
-    flexShrink: 0
-  });
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", gap: 4 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onChange(graphValue), style: chip(view === graphValue), children: graphLabel }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onChange(listValue), style: chip(view === listValue), children: listLabel })
-  ] });
-}
-function taskToneOf(status) {
-  if (status === "claimed") return "claimed";
-  if (status === "in_progress") return "running";
-  if (status === "pending" || status == null) return "pending";
-  if (status === "completed") return "completed";
-  if (status === "failed") return "failed";
-  return "cancelled";
-}
-var SEG_COLOR = {
-  pending: C.warn,
-  claimed: C.accent,
-  running: C.accent,
-  completed: C.ok,
-  failed: C.err,
-  cancelled: C.faint
-};
-function ProgressOverview({ tasks }) {
-  const count = (st) => tasks.filter((t) => t.status === st).length;
-  const pending = count("pending");
-  const claimed = count("claimed");
-  const running = count("in_progress");
-  const completed = count("completed");
-  const failed = count("failed");
-  const cancelled = count("cancelled");
-  const deleted = count("deleted");
-  const tasksById = (0, import_react.useMemo)(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
-  const blockedIds = tasks.filter((t) => (t.blockedBy || []).some((dep) => {
-    const d = tasksById.get(dep);
-    return d && !TERMINAL_STATUS.has(d.status);
-  })).filter((t) => t.status === "pending" || t.status === "claimed").map((t) => t.id);
-  const terminalAll = tasks.length > 0 && tasks.every((t) => TERMINAL_STATUS.has(t.status));
-  let summaryText = "\u8FD8\u6CA1\u6709\u4EFB\u52A1\u2014\u2014\u8BA9\u961F\u957F sci_team_dispatch \u6D3E\u53D1\u7B2C\u4E00\u9879\u5DE5\u4F5C";
-  let summaryTone = "running";
-  if (tasks.length === 0) {
-    summaryTone = "empty";
-  } else if (terminalAll) {
-    summaryText = `\u5168\u90E8\u7ED3\u675F\uFF1A\u5B8C\u6210 ${completed}${failed ? ` \xB7 \u5931\u8D25 ${failed}` : ""}${cancelled + deleted ? ` \xB7 \u53D6\u6D88/\u5220\u9664 ${cancelled + deleted}` : ""}`;
-    summaryTone = failed > 0 ? "warning" : "completed";
-  } else if (blockedIds.length > 0) {
-    summaryText = `\u53D7\u963B ${blockedIds.slice(0, 2).join("\u3001")}${blockedIds.length > 2 ? ` \u7B49 ${blockedIds.length} \u9879\uFF08\u4F9D\u8D56\u672A\u5B8C\u6210\uFF09` : "\uFF08\u4F9D\u8D56\u672A\u5B8C\u6210\uFF09"}`;
-    summaryTone = "warning";
-  } else if (running > 0 || claimed > 0) {
-    const act = tasks.filter((t) => t.status === "in_progress" || t.status === "claimed").map((t) => t.id);
-    summaryText = `\u6267\u884C\u4E2D ${act.slice(0, 3).join("\u3001")}${act.length > 3 ? ` \u7B49 ${act.length} \u9879` : ""}`;
-  } else if (pending > 0) {
-    summaryText = `${pending} \u9879\u5F85\u9886\uFF08sci_team_dispatch \u6307\u6D3E\u6210\u5458\uFF09`;
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { margin: "8px 0 10px", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 8, background: C.card }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 26 }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 12, color: C.fg }, children: "\u79D1\u7814\u5C0F\u961F" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.muted }, children: "\u961F\u957F\u7EDF\u7B79 \xB7 \u6210\u5458\u6267\u884C" })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "div",
-      {
-        "aria-hidden": true,
-        "data-progress-segments": "",
-        style: {
-          display: "flex",
-          gap: 2,
-          height: 6,
-          borderRadius: 3,
-          overflow: "hidden",
-          background: tasks.length === 0 ? C.chip : "transparent"
-        },
-        children: tasks.map((t) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { "data-state": taskToneOf(t.status), style: { flex: 1, background: SEG_COLOR[taskToneOf(t.status)] || C.faint } }, t.id))
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 7, fontSize: 12, color: C.fg }, "data-progress-legend": "", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "pending", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.warn }),
-        "\u5F85\u529E ",
-        pending
-      ] }),
-      claimed > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "claimed", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.accent }),
-        "\u5DF2\u9886\u53D6 ",
-        claimed
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "running", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.accent }),
-        "\u8FDB\u884C\u4E2D ",
-        running
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "completed", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.ok }),
-        "\u5DF2\u5B8C\u6210 ",
-        completed
-      ] }),
-      failed > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "failed", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.err }),
-        "\u5931\u8D25 ",
-        failed
-      ] }),
-      cancelled > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "cancelled", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.faint }),
-        "\u5DF2\u53D6\u6D88 ",
-        cancelled
-      ] }),
-      deleted > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { "data-state": "cancelled", style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: C.faint }),
-        "\u5DF2\u5220\u9664 ",
-        deleted
+function PaperSpinePage({ view, raw, onAction, onOpenConversation, onNavigate }) {
+  const paper = view.paper;
+  const hasSpine = Boolean(paper.core.claim || paper.results.length || paper.core.title);
+  const nextStep = paper.nextStep;
+  const nextAction = () => nextStep.action ? onAction(nextStep.action, nextStep.targetId || null) : nextStep.page && onNavigate(nextStep.page);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-stack", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Panel, { className: "sci-panel", title: "\u7814\u7A76\u9636\u6BB5", subtitle: `\u5F53\u524D\u9636\u6BB5\uFF1A${paper.stageLabel}${paper.venue ? ` \xB7 \u76EE\u6807\u671F\u520A\uFF1A${paper.venue}` : ""}`, action: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: onOpenConversation, children: "\u6253\u5F00\u5BF9\u8BDD" }), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StageTrack, { stages: paper.stages }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-small", children: [
+        paper.totalResults ? `${paper.totalResults} \u9879\u7814\u7A76\u7ED3\u679C \xB7 ${paper.supportedResults} \u9879\u6807\u8BB0\u4E3A\u201C\u5DF2\u83B7\u5F97\u652F\u6301\u201D` : "\u5C1A\u672A\u767B\u8BB0\u7814\u7A76\u7ED3\u679C",
+        paper.updatedAt ? ` \xB7 \u6700\u8FD1\u66F4\u65B0 ${new Date(paper.updatedAt).toLocaleString()}` : ""
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        "data-progress-summary": "",
-        "data-tone": summaryTone,
-        style: { display: "flex", alignItems: "center", gap: 5, marginTop: 6, fontSize: 11, color: summaryTone === "warning" ? C.err : summaryTone === "completed" ? C.ok : C.muted },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: summaryTone === "warning" ? C.err : summaryTone === "completed" ? C.ok : C.accent, size: 6 }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: summaryText })
-        ]
-      }
-    )
-  ] });
-}
-function PaperProgressOverview({ progress, selectedId, onSelect, allLabel = "\u5168\u90E8\u4EFB\u52A1" }) {
-  const rows = progress && Array.isArray(progress.results) ? progress.results : [];
-  const summary = progress && progress.summary || {};
-  if (rows.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8BBA\u6587\u63A8\u8FDB", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709 Result\u3002\u5148\u4E0E\u7528\u6237\u786E\u8BA4\u6587\u7AE0\u6838\u5FC3\u5E76\u7528 sci_result_add \u5EFA\u7ACB 3\u20135 \u6761\u53EF\u68C0\u9A8C\u5B50\u4E3B\u5F20\u3002" }) });
-  }
-  const metric = (label, done, total, color) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 9, color: total > 0 && done === total ? C.ok : color || C.muted, border: `1px solid ${C.divider}`, borderRadius: 8, padding: "0 5px", lineHeight: "16px" }, children: [
-    label,
-    " ",
-    done,
-    "/",
-    total
-  ] });
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    Panel,
-    {
-      title: "\u8BBA\u6587\u63A8\u8FDB",
-      extra: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.faint }, children: [
-        "\u5C31\u7EEA ",
-        summary.ready || 0,
-        "/",
-        summary.total || rows.length,
-        " \xB7 \u53D7\u963B ",
-        summary.blocked || 0
-      ] }),
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onSelect(null), style: { fontSize: 10, border: `1px solid ${selectedId ? C.border : C.accent}`, background: selectedId ? "transparent" : C.chip, color: selectedId ? C.muted : C.accent, borderRadius: 8, padding: "2px 8px", cursor: "pointer" }, children: allLabel }),
-          rows.map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onSelect(selectedId === r.id ? null : r.id), style: { fontSize: 10, border: `1px solid ${selectedId === r.id ? C.accent : C.border}`, background: selectedId === r.id ? C.chip : "transparent", color: selectedId === r.id ? C.accent : C.muted, borderRadius: 8, padding: "2px 8px", cursor: "pointer" }, children: r.id }, r.id))
+    !hasSpine ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Panel, { className: "sci-hero", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(EmptyState, { title: "\u5F00\u59CB\u4E00\u9879\u7814\u7A76", children: "\u4ECE\u4E00\u4E2A\u7814\u7A76\u95EE\u9898\u5F00\u59CB\uFF0C\u4E5F\u53EF\u4EE5\u5148\u6574\u7406\u5DF2\u7ECF\u5B8C\u6210\u7684\u7ED3\u679C\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: "sci-button sci-button-primary", onClick: () => onAction("explore"), children: "\u5F00\u59CB\u63A2\u7D22" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { onClick: () => onAction("import_results"), children: "\u5BFC\u5165\u5DF2\u6709\u7ED3\u679C" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-step-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-step", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "1. \u63A2\u7D22\u95EE\u9898" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u6F84\u6E05\u95EE\u9898\u3001\u5DF2\u6709\u8BC1\u636E\u4E0E\u53EF\u884C\u8303\u56F4" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(245px, 1fr))", gap: 6 }, children: rows.map((r) => {
-          const active = selectedId === r.id;
-          const taskProblem = (r.tasks.blocked || 0) > 0 || (r.tasks.failed || 0) > 0;
-          const reviewColor = r.review && r.review.severity === "pass" ? C.ok : r.review && r.review.severity === "fail" ? C.err : r.review && r.review.severity === "warn" ? C.warn : C.faint;
-          return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "button",
-            {
-              type: "button",
-              "data-paper-progress-row": r.id,
-              onClick: () => onSelect(active ? null : r.id),
-              style: { textAlign: "left", border: `1px solid ${active ? C.accent : taskProblem ? C.err : C.border}`, borderRadius: 8, padding: "7px 8px", background: active ? C.chip : C.card, color: C.fg, cursor: "pointer" },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 11, color: C.accent }, children: r.id }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 11, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: r.title }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { marginLeft: "auto", fontSize: 9, color: r.confirmed ? C.ok : C.warn }, children: r.confirmed ? "\u{1F512} \u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4" })
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }, children: [
-                  metric("\u4EFB\u52A1", r.tasks.completed, r.tasks.total, taskProblem ? C.err : C.accent),
-                  metric("\u6587\u732E", r.references.verified, r.references.total, C.warn),
-                  metric("\u56FE\u4EF6", r.figures.approved, r.figures.total, C.warn),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 9, color: reviewColor, border: `1px solid ${reviewColor}`, borderRadius: 8, padding: "0 5px", lineHeight: "16px" }, children: [
-                    "\u5BA1\u67E5 ",
-                    r.review && r.review.severity ? r.review.severity : "none"
-                  ] })
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: taskProblem ? C.err : C.muted, lineHeight: 1.45, marginTop: 5 }, children: [
-                  "\u4E0B\u4E00\u6B65\uFF1A",
-                  r.nextAction,
-                  r.owner ? ` \xB7 \u8D23\u4EFB\u6210\u5458 ${r.owner}` : ""
-                ] })
-              ]
-            },
-            r.id
-          );
-        }) })
-      ]
-    }
-  );
-}
-function tasksForResult(tasks, resultId) {
-  if (!resultId) return tasks;
-  const byId = new Map(tasks.map((t) => [t.id, t]));
-  const keep = new Set(tasks.filter((t) => t.resultId === resultId || Array.isArray(t.resultIds) && t.resultIds.includes(resultId)).map((t) => t.id));
-  const queue = [...keep];
-  while (queue.length > 0) {
-    const t = byId.get(queue.shift());
-    for (const dep of t && t.blockedBy || []) {
-      if (!keep.has(dep) && byId.has(dep)) {
-        keep.add(dep);
-        queue.push(dep);
-      }
-    }
-  }
-  return tasks.filter((t) => keep.has(t.id));
-}
-function mascotForMember(name, members, roles) {
-  const m = (members || []).find((x) => x && x.name === name);
-  if (!m) return null;
-  const meta = (roles || {})[m.role];
-  return meta && meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null;
-}
-function MemberStrip({ members, tasks, roles, memberLive, openMemberSession, memberOpenAvailable }) {
-  const [expandedMember, setExpandedMember] = (0, import_react.useState)(null);
-  const roleMetaOf = (m) => {
-    const table = roles || {};
-    if (m.role && table[m.role]) return table[m.role];
-    return Object.values(table).find((r) => r && r.member === m.name) || {};
-  };
-  let openable = false;
-  try {
-    openable = typeof memberOpenAvailable === "function" ? !!memberOpenAvailable() : false;
-  } catch {
-    openable = false;
-  }
-  const expTaskList = expandedMember ? tasks.filter((t) => t.assignee === expandedMember) : [];
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    "div",
-    {
-      "data-member-strip": "",
-      style: { borderBottom: `1px solid ${C.divider}`, marginBottom: 8 },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 6, padding: "2px 0 8px" }, children: members.map((m) => {
-          const meta = roleMetaOf(m);
-          const mascot = meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null;
-          const live = memberLive && memberLive[m.name] || "offline";
-          const owned = tasks.filter((t) => t.assignee === m.name && !TERMINAL_STATUS.has(t.status));
-          const running = live === "running" || live === "claimed/working";
-          const pose = running ? "working" : owned.length > 0 ? "thinking" : "idle";
-          const offline = live === "offline";
-          const current = owned.find((t) => t.status === "in_progress") || owned.find((t) => t.status === "claimed") || owned[0] || null;
-          const poseLabel = pose === "working" ? "\u6B63\u5728\u6267\u884C" : pose === "thinking" ? "\u9886\u4E86\u4EFB\u52A1\u5F85\u5F00\u5DE5" : "\u6682\u65E0\u5728\u529E";
-          const isExp = expandedMember === m.name;
-          return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              "data-member-tile": "",
-              "data-member-pose": pose,
-              "data-live": live,
-              onClick: openable ? () => {
-                try {
-                  openMemberSession(m);
-                } catch {
-                }
-              } : void 0,
-              title: `${m.name} \xB7 ${meta.label || m.label || ""} \xB7 ${LIVE_LABEL[live] || live} \xB7 ${poseLabel}\uFF08\u5728\u529E ${owned.length}\uFF09${openable ? " \xB7 \u70B9\u51FB\u5934\u50CF\u6253\u5F00\u4F1A\u8BDD" : ""}`,
-              style: {
-                minWidth: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 3,
-                padding: "6px 7px",
-                borderRadius: 8,
-                border: `1px solid ${running ? C.accent : C.divider}`,
-                background: C.card,
-                cursor: openable ? "pointer" : "default"
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, minWidth: 0 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                    "span",
-                    {
-                      style: {
-                        position: "relative",
-                        display: "inline-flex",
-                        flexShrink: 0,
-                        opacity: offline ? 0.72 : 1,
-                        animation: running ? "dsh-sci-bob 1.8s ease-in-out infinite" : void 0
-                      },
-                      children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                          MascotAvatar,
-                          {
-                            file: mascot,
-                            emoji: meta.icon,
-                            size: 34,
-                            overlay: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActionOverlay, { file: pose === "working" ? "working.svg" : pose === "thinking" ? "thinking.svg" : null, avatarSize: 34 })
-                          }
-                        ),
-                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                          "span",
-                          {
-                            style: {
-                              position: "absolute",
-                              right: -1,
-                              top: -1,
-                              width: 9,
-                              height: 9,
-                              borderRadius: "50%",
-                              background: LIVE_COLOR[live] || C.faint,
-                              border: `2px solid ${C.card}`,
-                              animation: running ? "dsh-sci-pulse 1.6s ease-in-out infinite" : void 0
-                            }
-                          }
-                        )
-                      ]
-                    }
-                  ),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { minWidth: 0, flex: 1 }, children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { display: "block", fontSize: 11, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: m.name }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: 9, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: meta.label || m.label || m.role || "", children: meta.label || m.label || m.role || "" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { "data-member-state": "", style: { display: "block", fontSize: 9, color: LIVE_COLOR[live] || C.faint, lineHeight: "12px" }, title: `${LIVE_LABEL[live] || live} \xB7 ${poseLabel}`, children: LIVE_LABEL[live] || live })
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { title: `\u5728\u529E\u4EFB\u52A1 ${owned.length} \u4E2A`, style: { minWidth: 18, textAlign: "center", padding: "0 4px", borderRadius: 8, fontSize: 9, lineHeight: "16px", color: owned.length > 0 ? "#fff" : C.muted, background: owned.length > 0 ? running ? C.ok : C.accent : C.chip }, children: owned.length })
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "div",
-                  {
-                    "data-member-current-task": "",
-                    title: current ? `${current.id} \xB7 ${current.subject || ""}${current.resultId ? ` \xB7 ${current.resultId}` : ""}` : "\u6682\u65E0\u5F53\u524D\u4EFB\u52A1",
-                    style: { minHeight: 28, fontSize: 9, color: current ? C.fg : C.faint, lineHeight: "13px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" },
-                    children: current ? `${current.resultId ? `${current.resultId} \xB7 ` : ""}${current.subject || current.id}` : "\u6682\u65E0\u5F53\u524D\u4EFB\u52A1"
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "button",
-                  {
-                    type: "button",
-                    "data-member-expand": isExp ? "open" : "closed",
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      setExpandedMember(isExp ? null : m.name);
-                    },
-                    title: isExp ? `\u6536\u8D77 ${m.name} \u7684\u4EFB\u52A1\u5217\u8868` : `\u5C55\u5F00 ${m.name} \u7684\u4EFB\u52A1\u5217\u8868\uFF08${tasks.filter((t) => t.assignee === m.name).length}\uFF09`,
-                    style: { fontSize: 9, color: isExp ? C.accent : C.muted, cursor: "pointer", lineHeight: "14px", padding: "0 6px", border: 0, background: "transparent", textAlign: "right" },
-                    children: isExp ? "\u6536\u8D77 \u25B4" : "\u4EFB\u52A1 \u25BE"
-                  }
-                )
-              ]
-            },
-            m.name
-          );
-        }) }),
-        expandedMember && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "div",
-          {
-            "data-member-tasks": "",
-            "data-member": expandedMember,
-            style: { border: `1px solid ${C.divider}`, borderRadius: 8, background: C.chip, padding: "5px 8px", marginBottom: 8, fontSize: 11 },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.faint, marginBottom: 3 }, children: [
-                expandedMember,
-                " \u7684\u4EFB\u52A1\uFF08",
-                expTaskList.length,
-                "\uFF09\u2014\u2014\u70B9\u51FB\u6210\u5458\u5934\u50CF\u6253\u5F00\u4F1A\u8BDD"
-              ] }),
-              expTaskList.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8BE5\u6210\u5458\u6682\u65E0\u4EFB\u52A1\u8BB0\u5F55\u3002" }),
-              expTaskList.map((t) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "div",
-                {
-                  "data-member-task-row": t.id,
-                  title: `${t.id} \xB7 ${t.subject || ""} \xB7 ${t.status}${t.result ? ` \xB7 \u56DE\u62A5\uFF1A${t.result}` : ""}`,
-                  style: { display: "flex", alignItems: "center", gap: 5, padding: "2px 0", color: C.fg },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: STATUS_COLOR[t.status] || C.faint, size: 6 }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DepChip, { id: t.id }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: t.subject || t.id }),
-                    t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.ok, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }, title: t.result, children: [
-                      "\u21A9 ",
-                      String(t.result).slice(0, 30)
-                    ] }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: fmtTime(t.updatedAt || t.createdAt) })
-                  ]
-                },
-                t.id
-              ))
-            ]
-          }
-        )
-      ]
-    }
-  );
-}
-var DAG_CAP = 18;
-var DAG_NODE_W = 150;
-var DAG_NODE_H = 50;
-var DAG_COL_GAP = 54;
-var DAG_ROW_GAP = 12;
-var DAG_PAD_X = 10;
-var DAG_HEAD_H = 24;
-var DAG_COLS = [
-  { label: "\u5F85\u529E", color: C.warn },
-  { label: "\u8FDB\u884C\u4E2D", color: C.accent },
-  { label: "\u5DF2\u5B8C\u6210", color: C.ok },
-  { label: "\u5DF2\u7ED3\u675F", color: C.faint }
-];
-function statusColIndex(status) {
-  if (status === "claimed" || status === "in_progress") return 1;
-  if (status === "completed") return 2;
-  if (status === "pending" || status == null) return 0;
-  return 3;
-}
-var DAG_COL_QUOTAS = [6, 6, 4, 2];
-var DAG_ENDED_RESERVE = 2;
-function depDepthOf(tasksById, id, memo, stack) {
-  if (memo.has(id)) return memo.get(id);
-  if (stack.has(id)) return 0;
-  stack.add(id);
-  const t = tasksById.get(id);
-  let d = 0;
-  if (t && Array.isArray(t.blockedBy)) {
-    for (const dep of t.blockedBy) {
-      const dd = depDepthOf(tasksById, dep, memo, stack);
-      if (dd + 1 > d) d = dd + 1;
-    }
-  }
-  stack.delete(id);
-  memo.set(id, d);
-  return d;
-}
-function dagNumId(t) {
-  const m = /(\d+)/.exec(String(t.id));
-  return m ? parseInt(m[1], 10) : 0;
-}
-function dagEdgePath(a, b) {
-  if (b.col > a.col) {
-    const x12 = a.x + DAG_NODE_W;
-    const y12 = a.y + DAG_NODE_H / 2;
-    const x22 = b.x;
-    const y22 = b.y + DAG_NODE_H / 2;
-    const dx = Math.max(18, (x22 - x12) / 2);
-    return `M${x12} ${y12}C${x12 + dx} ${y12},${x22 - dx} ${y22},${x22} ${y22}`;
-  }
-  if (b.col < a.col) {
-    const x12 = a.x;
-    const y12 = a.y + DAG_NODE_H / 2;
-    const x22 = b.x + DAG_NODE_W;
-    const y22 = b.y + DAG_NODE_H / 2;
-    const dx = Math.max(18, (x12 - x22) / 2);
-    return `M${x12} ${y12}C${x12 - dx} ${y12},${x22 + dx} ${y22},${x22} ${y22}`;
-  }
-  const x1 = a.x + DAG_NODE_W / 2;
-  const y1 = a.y + DAG_NODE_H;
-  const x2 = b.x + DAG_NODE_W / 2;
-  const y2 = b.y;
-  if (y2 >= y1) {
-    const dy2 = Math.max(16, (y2 - y1) / 2);
-    return `M${x1} ${y1}C${x1} ${y1 + dy2},${x2} ${y2 - dy2},${x2} ${y2}`;
-  }
-  const dy = Math.max(16, (y1 - y2) / 2);
-  return `M${x1} ${y1}C${x1} ${y1 - dy},${x2} ${y2 + dy},${x2} ${y2}`;
-}
-function dependentsMapOf(tasks) {
-  const map = /* @__PURE__ */ new Map();
-  for (const t of tasks) {
-    if (!t) continue;
-    for (const dep of Array.isArray(t.blockedBy) ? t.blockedBy : []) {
-      if (!map.has(dep)) map.set(dep, []);
-      map.get(dep).push(t.id);
-    }
-  }
-  return map;
-}
-function dagLayout(tasks, ensureId, cap) {
-  const maxNodes = typeof cap === "number" ? cap : DAG_CAP;
-  const tasksById = new Map(tasks.map((t) => [t.id, t]));
-  const depthMemo = /* @__PURE__ */ new Map();
-  const wrapped = tasks.map((t) => ({
-    t,
-    col: statusColIndex(t.status),
-    depth: depDepthOf(tasksById, t.id, depthMemo, /* @__PURE__ */ new Set())
-  }));
-  const wrapById = new Map(wrapped.map((w) => [w.t.id, w]));
-  const byCol = [[], [], [], []];
-  for (const w of wrapped) byCol[w.col].push(w);
-  byCol.forEach((list) => list.sort((a, b) => a.depth - b.depth || dagNumId(a.t) - dagNumId(b.t)));
-  const colTotals = [0, 0, 0, 0];
-  for (const w of wrapped) colTotals[w.col] += 1;
-  const dependentsOf = dependentsMapOf(tasks);
-  const chosen = [];
-  const chosenSet = /* @__PURE__ */ new Set();
-  const counts = [0, 0, 0, 0];
-  const push = (w, ignoreQuota) => {
-    if (!w || chosenSet.has(w.t.id) || chosen.length >= maxNodes) return;
-    if (!ignoreQuota && counts[w.col] >= DAG_COL_QUOTAS[w.col]) return;
-    chosen.push(w);
-    chosenSet.add(w.t.id);
-    counts[w.col] += 1;
-  };
-  const coreCap = Math.max(0, maxNodes - DAG_ENDED_RESERVE);
-  const isActiveId = (id) => {
-    const t = tasksById.get(id);
-    return !!t && !TERMINAL_STATUS.has(t.status);
-  };
-  const seeds = wrapped.filter((w) => w.col === 0 || w.col === 1).sort((a, b) => a.depth - b.depth || dagNumId(a.t) - dagNumId(b.t)).map((w) => w.t.id);
-  const queue = [];
-  const queued = /* @__PURE__ */ new Set();
-  for (const id of seeds) {
-    queue.push(id);
-    queued.add(id);
-  }
-  while (queue.length && chosen.length < coreCap) {
-    const id = queue.shift();
-    push(wrapById.get(id), true);
-    const t = tasksById.get(id);
-    if (!t) continue;
-    const next = [];
-    for (const dep of Array.isArray(t.blockedBy) ? t.blockedBy : []) {
-      if (!queued.has(dep)) {
-        queued.add(dep);
-        next.push(dep);
-      }
-    }
-    for (const depId of dependentsOf.get(id) || []) {
-      if (!queued.has(depId)) {
-        queued.add(depId);
-        next.push(depId);
-      }
-    }
-    next.sort((x, y) => (isActiveId(y) ? 1 : 0) - (isActiveId(x) ? 1 : 0));
-    queue.push(...next);
-  }
-  for (const w of byCol[3]) {
-    if (chosen.length >= maxNodes || counts[3] >= DAG_ENDED_RESERVE) break;
-    push(w);
-  }
-  while (chosen.length < maxNodes) {
-    let added = false;
-    for (const c of [2, 3, 0, 1]) {
-      if (chosen.length >= maxNodes) break;
-      const w = byCol[c].find((x) => !chosenSet.has(x.t.id));
-      if (w) {
-        chosen.push(w);
-        chosenSet.add(w.t.id);
-        counts[c] += 1;
-        added = true;
-      }
-    }
-    if (!added) break;
-  }
-  if (ensureId && !chosenSet.has(ensureId)) {
-    const w = wrapById.get(ensureId);
-    if (w) {
-      if (chosen.length >= maxNodes && chosen.length > 0) {
-        const evicted = chosen.pop();
-        chosenSet.delete(evicted.t.id);
-        counts[evicted.col] -= 1;
-      }
-      chosen.push(w);
-      chosenSet.add(w.t.id);
-      counts[w.col] += 1;
-    }
-  }
-  const colLists = [[], [], [], []];
-  for (const w of chosen) colLists[w.col].push(w);
-  const nodes = [];
-  colLists.forEach((list, c) => {
-    list.forEach((w, row) => {
-      nodes.push({ w, col: c, x: DAG_PAD_X + c * (DAG_NODE_W + DAG_COL_GAP), y: DAG_HEAD_H + row * (DAG_NODE_H + DAG_ROW_GAP) });
-    });
-  });
-  const posById = new Map(nodes.map((n) => [n.w.t.id, n]));
-  const edges = [];
-  const edgeSeen = /* @__PURE__ */ new Set();
-  for (const n of nodes) {
-    for (const dep of Array.isArray(n.w.t.blockedBy) ? n.w.t.blockedBy : []) {
-      const key = `${dep}->${n.w.t.id}`;
-      if (edgeSeen.has(key)) continue;
-      edgeSeen.add(key);
-      const s = posById.get(dep);
-      if (!s) continue;
-      const depTask = tasksById.get(dep);
-      edges.push({ from: dep, to: n.w.t.id, d: dagEdgePath(s, n), active: depTask ? !TERMINAL_STATUS.has(depTask.status) : true });
-    }
-  }
-  const rows = Math.max(1, ...colLists.map((l) => l.length));
-  const width = DAG_PAD_X * 2 + DAG_COLS.length * DAG_NODE_W + (DAG_COLS.length - 1) * DAG_COL_GAP;
-  const height = DAG_HEAD_H + rows * (DAG_NODE_H + DAG_ROW_GAP) - DAG_ROW_GAP + 6;
-  return { nodes, edges, width, height, hidden: tasks.length - chosen.length, colCounts: colTotals, tasksById };
-}
-function TaskDetailCard({ t, tasksById, onJumpTask, chain }) {
-  if (!t) return null;
-  const deps = Array.isArray(t.blockedBy) ? t.blockedBy : [];
-  const unfinishedDeps = deps.filter((dep) => {
-    const depTask = tasksById.get(dep);
-    return depTask ? !TERMINAL_STATUS.has(depTask.status) : false;
-  });
-  const blocked = unfinishedDeps.length > 0;
-  const jumpable = typeof onJumpTask === "function";
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    "div",
-    {
-      "data-task-detail": t.id,
-      style: {
-        border: `1px solid ${C.divider}`,
-        borderRadius: 8,
-        padding: "6px 10px",
-        marginBottom: 4,
-        background: C.chip,
-        fontSize: 11,
-        color: C.muted,
-        lineHeight: 1.6
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.faint }, children: [
-          t.id,
-          " \xB7 \u72B6\u6001 ",
-          t.status,
-          " \xB7 \u8D1F\u8D23\u4EBA ",
-          t.assignee || "\u5F85\u9886",
-          t.resultId ? ` \xB7 \u5BF9\u9F50 ${t.resultId}` : ""
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-step", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "2. \u7EC4\u7EC7\u7ED3\u679C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u5F62\u6210\u53EF\u6838\u9A8C\u7684\u6587\u7AE0\u7ED3\u6784" })
         ] }),
-        deps.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, flexShrink: 0 }, children: "\u4F9D\u8D56\uFF1A" }),
-          deps.map((dep) => {
-            const depTask = tasksById.get(dep);
-            const depOpen = depTask ? !TERMINAL_STATUS.has(depTask.status) : true;
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "span",
-              {
-                "data-dep-chip": dep,
-                onClick: (e) => {
-                  e.stopPropagation();
-                  if (jumpable) {
-                    try {
-                      onJumpTask(dep);
-                    } catch {
-                    }
-                  }
-                },
-                title: depTask ? `${dep} \xB7 ${depTask.subject || ""} \xB7 ${depTask.status} \xB7 \u70B9\u51FB${jumpable ? "\u8DF3\u8F6C" : "\u67E5\u770B"}` : `${dep}\uFF08\u4E0D\u5728\u4EFB\u52A1\u677F\u4E0A\uFF09`,
-                style: {
-                  display: "inline-block",
-                  padding: "0 6px",
-                  borderRadius: 8,
-                  border: `1px solid ${depOpen ? C.warn : C.border}`,
-                  background: C.card,
-                  fontSize: 10,
-                  lineHeight: "16px",
-                  color: depOpen ? C.warn : C.muted,
-                  cursor: jumpable ? "pointer" : "default",
-                  fontFamily: "ui-monospace, monospace"
-                },
-                children: [
-                  dep,
-                  depOpen ? " \u23F3" : " \u2713"
-                ]
-              },
-              dep
-            );
-          })
-        ] }),
-        t.desc && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, color: C.fg }, children: t.desc }),
-        chain && chain.downstream.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "div",
-          {
-            "data-task-downstream": chain.downstream.join(","),
-            style: { marginTop: 3, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, flexShrink: 0 }, children: "\u89E3\u9501\uFF1A" }),
-              chain.downstream.map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "span",
-                {
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    if (jumpable) {
-                      try {
-                        onJumpTask(id);
-                      } catch {
-                      }
-                    }
-                  },
-                  title: jumpable ? `\u70B9\u51FB\u8DF3\u8F6C\u5230 ${id}` : id,
-                  style: {
-                    display: "inline-block",
-                    padding: "0 6px",
-                    borderRadius: 8,
-                    border: `1px solid ${C.border}`,
-                    background: C.card,
-                    fontSize: 10,
-                    lineHeight: "16px",
-                    color: C.muted,
-                    cursor: jumpable ? "pointer" : "default",
-                    fontFamily: "ui-monospace, monospace"
-                  },
-                  children: id
-                },
-                id
-              ))
-            ]
-          }
-        ),
-        t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.ok }, children: "\u7ED3\u679C\uFF1A" }),
-          t.result
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, color: C.faint }, children: [
-          "\u521B\u5EFA ",
-          fmtTime(t.createdAt) || "\u2014",
-          t.claimedAt ? ` \xB7 \u9886\u53D6 ${fmtTime(t.claimedAt)}` : "",
-          t.updatedAt ? ` \xB7 \u66F4\u65B0 ${fmtTime(t.updatedAt)}` : ""
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-step", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: "3. \u6267\u884C\u4E0E\u5199\u4F5C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u786E\u8BA4\u540E\u7EC6\u5316\u4EFB\u52A1\u3001\u5206\u6790\u548C\u5448\u73B0" })
         ] })
-      ]
-    }
-  );
-}
-function TaskDag({ tasks, members, roles, focusTaskId, onClearFocus }) {
-  const [sel, setSel] = (0, import_react.useState)(null);
-  const [hoverId, setHoverId] = (0, import_react.useState)(null);
-  const [expandedAll, setExpandedAll] = (0, import_react.useState)(false);
-  const uidRef = (0, import_react.useRef)("");
-  if (!uidRef.current) uidRef.current = `dshsci-${Math.random().toString(36).slice(2, 8)}`;
-  const uid = uidRef.current;
-  const focusId = sel || hoverId || null;
-  const chain = (0, import_react.useMemo)(() => focusId ? dependencyClosure(focusId, tasks) : null, [focusId, tasks]);
-  const related = chain ? chain.related : null;
-  (0, import_react.useEffect)(() => {
-    if (!sel) return void 0;
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") setSel(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [sel]);
-  const layout = (0, import_react.useMemo)(
-    () => dagLayout(tasks, focusTaskId || sel || null, expandedAll ? Infinity : DAG_CAP),
-    [tasks, focusTaskId, sel, expandedAll]
-  );
-  (0, import_react.useEffect)(() => {
-    if (!hoverId) return;
-    if (!layout.nodes.some((n) => n.w.t.id === hoverId)) setHoverId(null);
-  }, [layout, hoverId]);
-  const vpRef = (0, import_react.useRef)(null);
-  (0, import_react.useEffect)(() => {
-    try {
-      const el = vpRef.current;
-      if (el && layout.width) el.scrollLeft = Math.max(0, layout.width - el.clientWidth);
-    } catch {
-    }
-  }, [expandedAll, layout.width]);
-  (0, import_react.useEffect)(() => {
-    if (!focusTaskId) return void 0;
-    setSel(focusTaskId);
-    const timer = setTimeout(() => {
-      try {
-        const el = document.querySelector(`[data-dag-node="${focusTaskId}"]`);
-        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-      } catch {
-      }
-      if (typeof onClearFocus === "function") onClearFocus();
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [focusTaskId]);
-  const memberByName = (0, import_react.useMemo)(() => new Map((members || []).map((m) => [m.name, m])), [members]);
-  const ownerMascotOf = (assignee) => {
-    const m = memberByName.get(assignee);
-    if (!m) return null;
-    const meta = (roles || {})[m.role];
-    return meta && meta.mascot || ROLE_MASCOT_FALLBACK[m.role] || null;
-  };
-  const jumpToTask = (0, import_react.useCallback)((id) => {
-    if (!id) return;
-    setSel(id);
-    const attempt = (n) => {
-      setTimeout(() => {
-        try {
-          const el = document.querySelector(`[data-dag-node="${id}"]`);
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-            return;
-          }
-        } catch {
-        }
-        if (n === 0) {
-          setExpandedAll(true);
-          attempt(1);
-        }
-      }, 60);
-    };
-    attempt(0);
-  }, []);
-  const selTask = sel ? layout.tasksById.get(sel) : null;
-  if (tasks.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "8px 6px 4px" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 44, style: { display: "inline-flex" } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u4EFB\u52A1\u3002\u961F\u957F\u7528 sci_team_dispatch \u6D3E\u53D1\uFF0C\u6210\u5458\u4F1A\u81EA\u52A8\u88AB\u5524\u9192\u6267\u884C\u3002" })
-    ] });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "div",
-      {
-        "data-dag-viewport": "",
-        ref: vpRef,
-        style: { maxHeight: 380, overflow: "auto", border: `1px solid ${C.divider}`, borderRadius: 8, background: C.card, position: "relative" },
-        children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-dag-canvas": "", "data-dag-focus": focusId || void 0, style: { position: "relative", width: layout.width, height: layout.height }, children: [
-          DAG_COLS.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              "data-dag-col": c.label,
-              style: {
-                position: "absolute",
-                left: DAG_PAD_X + i * (DAG_NODE_W + DAG_COL_GAP),
-                top: 4,
-                width: DAG_NODE_W,
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 10,
-                color: C.muted
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: c.color, size: 6 }),
-                c.label,
-                " ",
-                layout.colCounts[i]
-              ]
-            },
-            c.label
-          )),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "svg",
-            {
-              "data-dag-edges": "",
-              width: layout.width,
-              height: layout.height,
-              style: { position: "absolute", left: 0, top: 0, pointerEvents: "none" },
-              "aria-hidden": true,
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("defs", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("marker", { id: `${uid}-arrow-a`, viewBox: "0 0 8 8", refX: "7", refY: "4", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M0 0 L8 4 L0 8 Z", style: { fill: C.accent } }) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("marker", { id: `${uid}-arrow-f`, viewBox: "0 0 8 8", refX: "7", refY: "4", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M0 0 L8 4 L0 8 Z", style: { fill: C.faint } }) })
-                ] }),
-                layout.edges.map((e) => {
-                  const hot = related !== null && related.has(e.from) && related.has(e.to);
-                  const dimmed = related !== null && !hot;
-                  const strong = hot || related === null && e.active;
-                  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                    "path",
-                    {
-                      "data-dag-edge": `${e.from}->${e.to}`,
-                      "data-dag-hot": hot ? "true" : void 0,
-                      d: e.d,
-                      fill: "none",
-                      style: { stroke: strong ? C.accent : C.faint, pointerEvents: "stroke" },
-                      strokeWidth: strong ? 1.8 : 1,
-                      strokeDasharray: e.active ? void 0 : "3 3",
-                      opacity: dimmed ? 0.18 : strong ? 0.95 : 0.55,
-                      markerEnd: strong ? `url(#${uid}-arrow-a)` : `url(#${uid}-arrow-f)`,
-                      children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("title", { children: `${e.from} \u2192 ${e.to} \u4F9D\u8D56` })
-                    },
-                    `${e.from}->${e.to}`
-                  );
-                })
-              ]
-            }
-          ),
-          layout.nodes.map(({ w, x, y, col }) => {
-            const t = w.t;
-            const isSel = sel === t.id;
-            const isFocus = focusId === t.id;
-            const dimmed = related !== null && !related.has(t.id);
-            const running = t.status === "claimed" || t.status === "in_progress";
-            const color = STATUS_COLOR[t.status] || C.faint;
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "div",
-              {
-                "data-dag-node": t.id,
-                "data-status": t.status,
-                "data-col": DAG_COLS[col].label,
-                "data-dag-focus": isFocus ? "true" : void 0,
-                "data-dag-dimmed": dimmed ? "true" : void 0,
-                onClick: () => setSel(isSel ? null : t.id),
-                onKeyDown: (event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSel(isSel ? null : t.id);
-                  }
-                },
-                onMouseEnter: () => setHoverId(t.id),
-                onMouseLeave: () => setHoverId((cur) => cur === t.id ? null : cur),
-                onFocus: () => setHoverId(t.id),
-                onBlur: () => setHoverId((cur) => cur === t.id ? null : cur),
-                tabIndex: 0,
-                role: "button",
-                "aria-pressed": isSel,
-                title: `${t.id} \xB7 ${t.subject || ""} \xB7 ${t.assignee || "\u5F85\u9886"} \xB7 \u60AC\u505C\u9AD8\u4EAE\u4F9D\u8D56\u94FE\uFF0C\u70B9\u51FB${isSel ? "\u6536\u8D77" : "\u5C55\u5F00"}\u8BE6\u60C5`,
-                style: {
-                  position: "absolute",
-                  left: x,
-                  top: y,
-                  width: DAG_NODE_W,
-                  height: DAG_NODE_H,
-                  // F2：节点用更高层 surface（bg-layer-2）+ border-l4 边框（暗色 alpha 0.2 ≥ 0.18）
-                  border: `1px solid ${isFocus ? C.accent : C.borderNode}`,
-                  borderLeft: `3px solid ${color}`,
-                  borderRadius: 8,
-                  background: isSel ? C.chip : C.surface,
-                  padding: "3px 6px",
-                  cursor: "pointer",
-                  outline: "none",
-                  opacity: dimmed ? 0.32 : 1,
-                  transition: "opacity 0.12s ease",
-                  animation: running ? "dsh-sci-nodeglow 2.2s ease-in-out infinite" : void 0
-                },
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4, height: 15 }, children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.faint, fontFamily: "ui-monospace, monospace", flexShrink: 0 }, children: t.id }),
-                    t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { title: `\u6709\u56DE\u62A5\u6458\u8981\uFF1A${String(t.result).slice(0, 80)}`, style: { fontSize: 9, color: C.ok, flexShrink: 0 }, children: "\u21A9" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 3, maxWidth: DAG_NODE_W - 46, overflow: "hidden" }, children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: t.assignee || "\u5F85\u9886" }),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: ownerMascotOf(t.assignee), emoji: "\u{1F464}", size: 13 })
-                    ] })
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 11,
-                        color: C.fg,
-                        lineHeight: "13px",
-                        height: 26,
-                        marginTop: 1,
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        wordBreak: "break-all"
-                      },
-                      children: t.subject || t.id
-                    }
-                  )
-                ]
-              },
-              t.id
-            );
-          })
-        ] })
-      }
-    ),
-    layout.hidden > 0 ? (
-      // F6：可点击展开全部隐藏节点（CAP 切至全量）
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { textAlign: "center", padding: "3px 0 0" }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-        "button",
-        {
-          "data-dag-expand": "",
-          onClick: () => setExpandedAll(true),
-          title: "\u70B9\u51FB\u5C55\u5F00\u5168\u90E8\u4EFB\u52A1\u8282\u70B9",
-          style: {
-            fontSize: 10,
-            color: C.accent,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: "2px 8px",
-            textDecoration: "underline"
-          },
-          children: [
-            "+",
-            layout.hidden,
-            " \u66F4\u591A\uFF08\u70B9\u51FB\u5C55\u5F00\u5168\u90E8\uFF09"
-          ]
-        }
-      ) })
-    ) : expandedAll && tasks.length > DAG_CAP && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { textAlign: "center", padding: "3px 0 0" }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "button",
-      {
-        "data-dag-collapse": "",
-        onClick: () => setExpandedAll(false),
-        title: "\u6536\u8D77\uFF0C\u56DE\u5230 18 \u8282\u70B9\u6982\u89C8",
-        style: {
-          fontSize: 10,
-          color: C.muted,
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-          padding: "2px 8px",
-          textDecoration: "underline"
-        },
-        children: [
-          "\u6536\u8D77\uFF08\u5DF2\u5C55\u5F00\u5168\u90E8 ",
-          tasks.length,
-          " \u4E2A\u8282\u70B9\uFF09"
-        ]
-      }
-    ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 6 }, "data-task-detail-host": "", children: selTask ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskDetailCard, { t: selTask, tasksById: layout.tasksById, onJumpTask: jumpToTask, chain }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u60AC\u505C\u8282\u70B9\u9AD8\u4EAE\u4E0A\u4E0B\u6E38\u4F9D\u8D56\u94FE\uFF0C\u70B9\u51FB\u67E5\u770B\u8BE6\u60C5\uFF08\u63CF\u8FF0/\u7ED3\u679C/\u4F9D\u8D56/\u89E3\u9501\uFF09\uFF0CEsc \u6536\u8D77\uFF1B\u4F9D\u8D56\u4E0E\u89E3\u9501 chip \u53EF\u70B9\u51FB\u8DF3\u8F6C\uFF1B\u70B9\u51FB\u4E0A\u65B9\u6210\u5458\u5934\u50CF\u6253\u5F00\u4F1A\u8BDD\u3002" }) })
-  ] });
-}
-function TaskBoard({ tasks, focusTaskId, onClearFocus }) {
-  const [expanded, setExpanded] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
-  const toggle = (id) => setExpanded((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  });
-  (0, import_react.useEffect)(() => {
-    if (!focusTaskId) return void 0;
-    setExpanded((prev) => {
-      if (prev.has(focusTaskId)) return prev;
-      const next = new Set(prev);
-      next.add(focusTaskId);
-      return next;
-    });
-    const timer = setTimeout(() => {
-      try {
-        const el = document.querySelector(`[data-task-row="${focusTaskId}"]`);
-        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ behavior: "smooth", block: "center" });
-      } catch {
-      }
-      if (typeof onClearFocus === "function") onClearFocus();
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [focusTaskId]);
-  if (tasks.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "8px 6px 4px" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 44, style: { display: "inline-flex" } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u4EFB\u52A1\u3002\u961F\u957F\u7528 sci_team_dispatch \u6D3E\u53D1\uFF0C\u6210\u5458\u4F1A\u81EA\u52A8\u88AB\u5524\u9192\u6267\u884C\u3002" })
-    ] });
-  }
-  const tasksById = new Map(tasks.map((t) => [t.id, t]));
-  const jumpToTask = (id) => {
-    if (!id || !tasksById.has(id)) return;
-    setExpanded((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-    setTimeout(() => {
-      try {
-        const el = document.querySelector(`[data-task-row="${id}"]`);
-        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ behavior: "smooth", block: "center" });
-      } catch {
-      }
-    }, 60);
-  };
-  const rows = [...tasks].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)).slice(0, 20);
-  if (focusTaskId) {
-    const focusTask = tasks.find((t) => t && t.id === focusTaskId);
-    if (focusTask && !rows.some((t) => t.id === focusTaskId)) rows.unshift(focusTask);
-  }
-  const hidden = tasks.length - rows.length;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    rows.map((t) => {
-      const isOpen = expanded.has(t.id);
-      const unfinishedDeps = (t.blockedBy || []).filter((dep) => {
-        const depTask = tasksById.get(dep);
-        return depTask ? !TERMINAL_STATUS.has(depTask.status) : false;
-      });
-      const blocked = unfinishedDeps.length > 0;
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "div",
-          {
-            "data-task-row": t.id,
-            onClick: () => toggle(t.id),
-            title: `${t.id} \xB7 \u70B9\u51FB${isOpen ? "\u6536\u8D77" : "\u5C55\u5F00"}\u8BE6\u60C5`,
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "5px 8px",
-              marginBottom: 4,
-              border: `1px solid ${C.border}`,
-              borderRadius: 8,
-              background: C.card,
-              fontSize: 12,
-              cursor: "pointer"
-            },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: blocked ? C.faint : STATUS_COLOR[t.status] || C.faint, size: 7 }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DepChip, { id: t.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto" }, children: t.subject || t.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: t.assignee || "\u5F85\u9886" }),
-              [...new Set([...Array.isArray(t.resultIds) ? t.resultIds : [], t.resultId].filter(Boolean))].map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResBadge, { id }, id)),
-              t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "span",
-                {
-                  title: `\u56DE\u62A5\u6458\u8981\uFF1A${t.result}`,
-                  style: { color: C.ok, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 },
-                  children: [
-                    "\u21A9 ",
-                    String(t.result).slice(0, 40)
-                  ]
-                }
-              ),
-              blocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DepChip, { id: "\u963B\u585E" }),
-              (t.blockedBy || []).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "inline-flex", flexShrink: 0 }, children: (t.blockedBy || []).slice(0, 3).map((dep) => {
-                const depTask = tasksById.get(dep);
-                const depOpen = depTask ? !TERMINAL_STATUS.has(depTask.status) : true;
-                return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                  "span",
-                  {
-                    "data-row-dep-chip": dep,
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      jumpToTask(dep);
-                    },
-                    title: `${dep}${depTask ? ` \xB7 ${depTask.status}` : ""} \xB7 \u70B9\u51FB\u8DF3\u8F6C\u8BE5\u4EFB\u52A1`,
-                    style: {
-                      display: "inline-block",
-                      padding: "0 6px",
-                      marginLeft: 4,
-                      borderRadius: 8,
-                      border: `1px solid ${depOpen ? C.warn : C.border}`,
-                      fontSize: 10,
-                      lineHeight: "16px",
-                      color: depOpen ? C.warn : C.muted,
-                      cursor: "pointer",
-                      fontFamily: "ui-monospace, monospace",
-                      flexShrink: 0
-                    },
-                    children: [
-                      dep,
-                      depOpen ? " \u23F3" : ""
-                    ]
-                  },
-                  dep
-                );
-              }) }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: fmtTime(t.updatedAt || t.createdAt) }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, flexShrink: 0 }, children: isOpen ? "\u25BE" : "\u25B8" })
-            ]
-          }
-        ),
-        isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskDetailCard, { t, tasksById, onJumpTask: jumpToTask })
-      ] }, t.id);
-    }),
-    hidden > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", fontSize: 11, color: C.faint, padding: "2px 0 6px" }, children: [
-      "\u8FD8\u6709 ",
-      hidden,
-      " \u6761\u2026"
-    ] })
-  ] });
-}
-function CaptainInbox({ tasks, members, roles }) {
-  const reports = (tasks || []).filter((t) => t && typeof t.result === "string" && t.result.trim() && t.status !== "deleted").sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)).slice(0, 8);
-  if (reports.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "6px 4px 2px" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 36, style: { display: "inline-flex" } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u4EFB\u52A1\u56DE\u62A5\u3002\u6210\u5458\u5B8C\u6210\u4EFB\u52A1\u540E\uFF0C\u961F\u957F\u7528 sci_team_update_task \u8BB0\u5F55 result_note\uFF1B\u6458\u8981\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC\u3002\u8FD9\u91CC\u4E0D\u662F\u6210\u5458\u804A\u5929\u8BB0\u5F55\u3002" })
-    ] });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-captain-inbox": "", children: reports.map((t) => {
-    const mascot = mascotForMember(t.assignee, members, roles);
-    const member = (members || []).find((x) => x && x.name === t.assignee);
-    const emoji = member ? ((roles || {})[member.role] || {}).icon : void 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        "data-inbox-row": t.id,
-        title: `${t.assignee || "\u5F85\u9886"} \xB7 ${t.subject || ""} \xB7 ${t.status} \xB7 ${t.result}`,
-        style: {
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 6,
-          padding: "4px 8px",
-          marginBottom: 4,
-          border: `1px solid ${C.border}`,
-          borderRadius: 8,
-          background: C.card,
-          fontSize: 11
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: mascot, emoji, size: 20, style: { marginTop: 1 } }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { minWidth: 0, flex: 1 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5 }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, flexShrink: 0 }, children: t.assignee || "\u5F85\u9886" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DepChip, { id: t.id }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: STATUS_COLOR[t.status] || C.faint, size: 6 }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: fmtTime(t.updatedAt || t.createdAt) })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.fg, whiteSpace: "pre-wrap", marginTop: 2, lineHeight: 1.5 }, children: [
-              String(t.result).slice(0, 160),
-              String(t.result).length > 160 ? "\u2026" : ""
-            ] })
+      ] })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-grid", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-col-8 sci-stack", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Panel, { title: "\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA", subtitle: paper.core.confirmed ? "\u5F53\u524D\u4FEE\u8BA2\u5DF2\u786E\u8BA4" : "\u5019\u9009\u7ED3\u8BBA\u4ECD\u5F85\u786E\u8BA4", action: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Badge, { tone: paper.core.confirmed ? "good" : "warn", children: paper.core.confirmed ? "\u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4" }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h2", { className: "sci-title", children: paper.core.title || "\u5C1A\u672A\u547D\u540D" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { className: "sci-copy", children: paper.core.claim || "\u5F53\u524D\u8FD8\u6CA1\u6709\u6838\u5FC3\u7ED3\u8BBA\u5019\u9009\u3002\u4F60\u53EF\u4EE5\u5148\u751F\u6210\u6587\u7AE0\u7ED3\u6784\u3002" }),
+          paper.core.innovation && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { className: "sci-small", style: { marginTop: 10 }, children: [
+            "\u521B\u65B0\u70B9\uFF1A",
+            paper.core.innovation
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-result-actions", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { primary: true, onClick: () => onAction(paper.results.length ? "optimize_structure" : "generate_structure", "core"), children: paper.results.length ? "\u4F18\u5316\u7ED3\u6784" : "\u751F\u6210\u6587\u7AE0\u7ED3\u6784" }),
+            !paper.core.confirmed && paper.core.claim && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { onClick: () => onAction("confirm", "core"), children: "\u786E\u8BA4\u5E76\u7EE7\u7EED" })
           ] })
-        ]
-      },
-      t.id
-    );
-  }) });
-}
-var SKILL_MANAGE_URL = "/plugins/dsh-science/skill-manage";
-var SKILL_CATALOG_FALLBACK = {
-  simulator: ["kdense-cantera", "academicforge-compute-env", "scimate-hpc-openfoam"],
-  trainer: ["hf-llm-trainer", "orchestra-fine-tuning", "kdense-pytorch-lightning"],
-  "literature-scout": ["kdense-bgpt-paper-search", "kdense-exa-search", "paper-search-pro"],
-  writer: ["research-paper-writing", "ai-research-writing", "orchestra-paper-writing"],
-  "figure-expert": ["academicforge-sci-viz", "paperbanana", "agent-figure-gallery"],
-  reviewer: ["ars-paper-reviewer", "manuscript-review", "ai-peer-review"],
-  analyst: ["kdense-eda", "hf-datasets", "kdense-dask"],
-  "topic-designer": ["orchestra-ideation", "kdense-experimental-design", "academic-research-agent"],
-  presentation: ["open-kimi-ppt", "thesis-defense-pptx", "beamer-academic"]
-};
-function SkillMenuDesktopFallback() {
-  const roleLabels = ROLE_LABEL_FALLBACK;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { style: { margin: "6px 0", fontSize: 12 }, "data-skill-fallback": true, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { style: { cursor: "pointer", color: C.muted }, children: "\u89D2\u8272\u6280\u80FD\u5E93\u5B89\u88C5\u547D\u4EE4\uFF08\u684C\u9762\u7248\u964D\u7EA7\uFF09" }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { color: C.faint, fontSize: 10, margin: "4px 0" }, children: "\u6BCF\u89D2\u8272 \u22643 \u4E2A\u7CBE\u9009\u5F00\u6E90 skill \u4ED3\u5E93\uFF1B\u70B9\u51FB chip \u590D\u5236\u547D\u4EE4\u540E\u53D1\u7ED9\u961F\u957F\u6267\u884C\u3002web \u6863\u6848\u4E0B\u53EF\u76F4\u63A5\u5728\u56E2\u961F tab \u52FE\u9009\u5B89\u88C5\u3002" }),
-    Object.entries(SKILL_CATALOG_FALLBACK).map(([role, ids]) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginBottom: 4 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 11, color: C.fg, marginRight: 6 }, children: roleLabels[role] || role }),
-      ids.map((id) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "inline-block", marginRight: 4, marginBottom: 2 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_skill_install role=${role} repo_id=${id}` }) }, id))
-    ] }, role))
-  ] });
-}
-var ROLE_LABEL_FALLBACK = {
-  "literature-scout": "\u{1F4DA} \u6587\u732E\u8C03\u7814\u4E13\u5458",
-  "topic-designer": "\u{1F4A1} \u8BFE\u9898\u8BBE\u8BA1\u4E13\u5BB6",
-  simulator: "\u{1F5A5} \u8BA1\u7B97\u6A21\u62DF\u4E13\u5BB6",
-  trainer: "\u{1F9E0} \u6A21\u578B\u8BAD\u7EC3\u4E13\u5BB6",
-  "figure-expert": "\u{1F4CA} \u79D1\u7814\u7ED8\u56FE\u4E13\u5BB6",
-  writer: "\u{1F4DD} \u6587\u7AE0\u64B0\u5199\u4E13\u5BB6",
-  reviewer: "\u{1F50D} \u79D1\u7814\u5BA1\u67E5\u4E13\u5BB6",
-  analyst: "\u{1F4C8} \u6570\u636E\u5206\u6790\u5E08",
-  presentation: "\u{1F4FD} \u6C47\u62A5PPT\u4E13\u5BB6"
-};
-function SkillMenuSection({ skillMenu, roles, notify, refresh }) {
-  const catalog = skillMenu && skillMenu.catalog || {};
-  const installed = skillMenu && skillMenu.installed || {};
-  const integrations = skillMenu && Array.isArray(skillMenu.integrations) ? skillMenu.integrations : [];
-  const [busyRole, setBusyRole] = (0, import_react.useState)(null);
-  const [customUrl, setCustomUrl] = (0, import_react.useState)({});
-  const roleEntries = Object.entries(roles || {}).filter(([id]) => catalog[id]);
-  const postManage = async (body, okMsg) => {
-    const roleKey = body.role;
-    setBusyRole(roleKey);
-    try {
-      const res = await fetch(SKILL_MANAGE_URL, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const result = await res.json().catch(() => null);
-      if (!res.ok || !result || result.ok !== true) {
-        throw new Error(result && result.error || `HTTP ${res.status}`);
-      }
-      notify(okMsg || "\u6280\u80FD\u5E93\u5DF2\u66F4\u65B0");
-      if (typeof refresh === "function") refresh();
-      return true;
-    } catch (err) {
-      notify(`\u6280\u80FD\u5E93\u64CD\u4F5C\u5931\u8D25\uFF1A${err && err.message || err}`);
-      return false;
-    } finally {
-      setBusyRole(null);
-    }
-  };
-  const installedOf = (role) => Array.isArray(installed[role]) ? installed[role] : [];
-  if (roleEntries.length === 0 && integrations.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    Panel,
-    {
-      title: "\u89D2\u8272\u6280\u80FD\u5E93",
-      extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6BCF\u89D2\u8272 \u22643 \u7CBE\u9009\u4ED3\u5E93 \xB7 \u6309\u89D2\u8272\u7D22\u5F15\u63A7\u5236\u9ED8\u8BA4\u53EF\u53D1\u73B0\u8303\u56F4\uFF08\u975E\u6587\u4EF6 ACL\uFF09" }),
-      children: [
-        integrations.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "div",
-          {
-            "data-optional-integration": item.id,
-            style: { border: `1px solid ${C.accent}`, borderRadius: 8, padding: "7px 9px", marginBottom: 8, background: C.chip },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 12, color: C.fg }, children: item.name }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.accent, border: `1px solid ${C.accent}`, borderRadius: 8, padding: "0 5px" }, children: "\u53EF\u9009\u72EC\u7ACB\u63D2\u4EF6" }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.faint }, children: item.license })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.muted, lineHeight: 1.5, marginTop: 3 }, children: item.description }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginTop: 5, fontSize: 10, color: C.faint }, children: [
-                "\u5B89\u88C5\u547D\u4EE4\uFF1A",
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: item.installCommand }),
-                item.repo && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", { href: item.repo, target: "_blank", rel: "noreferrer", style: { color: C.accent }, children: "\u67E5\u770B\u4ED3\u5E93 \u2197" })
-              ] })
-            ]
-          },
-          item.id
-        )),
-        roleEntries.map(([role, meta]) => {
-          const inst = installedOf(role);
-          const byCatalogId = (id) => inst.find((x) => x.catalogId === id || x.name === id);
-          const urlDraft = customUrl[role] || { url: "", name: "" };
-          const busy = busyRole === role;
-          return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { "data-skill-role": role, style: { margin: "0 0 6px", border: `1px solid ${C.divider}`, borderRadius: 8, padding: "4px 8px" }, open: inst.length > 0, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("summary", { style: { cursor: "pointer", fontSize: 12, color: C.fg }, children: [
-              (meta && meta.icon ? `${meta.icon} ` : "") + (meta && meta.label || role),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "span",
-                {
-                  "data-skill-count": role,
-                  style: { marginLeft: 8, fontSize: 10, color: inst.length > 0 ? C.ok : C.faint, border: `1px solid ${inst.length > 0 ? C.ok : C.border}`, borderRadius: 8, padding: "0 6px" },
-                  children: [
-                    inst.length,
-                    " \u5DF2\u5B89\u88C5"
-                  ]
-                }
-              )
-            ] }),
-            busy && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: 10, color: C.accent, margin: "2px 0" }, children: "\u5904\u7406\u4E2D\uFF08git clone --depth 1\uFF0C\u6700\u957F\u7EA6 2 \u5206\u949F\uFF09\u2026" }),
-            (catalog[role] || []).map((item) => {
-              const entry = byCatalogId(item.id);
-              const checked = !!entry;
-              return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "label",
-                {
-                  "data-skill-item": item.id,
-                  style: { display: "flex", alignItems: "flex-start", gap: 6, padding: "3px 0", cursor: busy ? "wait" : "pointer", fontSize: 11, color: C.fg },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                      "input",
-                      {
-                        type: "checkbox",
-                        "data-skill-check": item.id,
-                        checked,
-                        disabled: busy,
-                        onChange: () => {
-                          if (checked) {
-                            postManage({ action: "remove", role, name: entry.name }, `\u5DF2\u79FB\u9664 ${item.name}`);
-                          } else {
-                            postManage({ action: "install", role, repoId: item.id }, `\u5DF2\u5B89\u88C5 ${item.name}\uFF08\u540C\u89D2\u8272\u5DF2 spawn \u6210\u5458\u81EA\u52A8\u5524\u9192\uFF1B\u5426\u5219\u4E0B\u6B21 spawn \u751F\u6548\uFF09`);
-                          }
-                        },
-                        style: { marginTop: 2, flexShrink: 0 }
-                      }
-                    ),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: item.name }),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, marginLeft: 6, fontFamily: "ui-monospace, monospace", fontSize: 10 }, children: item.license }),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.muted }, children: item.description }),
-                      checked && entry && entry.skillNames && entry.skillNames.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.ok }, children: [
-                        "\uFF08\u6280\u80FD\uFF1A",
-                        entry.skillNames.join("\u3001"),
-                        "\uFF09"
-                      ] })
-                    ] })
-                  ]
-                },
-                item.id
-              );
-            }),
-            inst.filter((e) => !e.catalogId).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-skill-custom-list": role, style: { margin: "4px 0", borderTop: `1px dashed ${C.border}`, paddingTop: 4 }, children: inst.filter((e) => !e.catalogId).map((e) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-skill-custom-entry": e.name, style: { display: "flex", alignItems: "center", gap: 6, fontSize: 11, padding: "2px 0" }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: [
-                e.name,
-                e.warn ? "\uFF08\u26A0 \u65E0 SKILL.md\uFF09" : ""
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "button",
-                {
-                  "data-skill-custom-remove": e.name,
-                  disabled: busy,
-                  onClick: () => postManage({ action: "remove", role, name: e.name }, `\u5DF2\u79FB\u9664 ${e.name}`),
-                  style: { fontSize: 10, padding: "1px 8px", border: `1px solid ${C.border}`, borderRadius: 6, background: "transparent", color: C.muted, cursor: busy ? "not-allowed" : "pointer" },
-                  children: "\u79FB\u9664"
-                }
-              )
-            ] }, e.name)) }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, marginTop: 4, alignItems: "center", flexWrap: "wrap" }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "input",
-                {
-                  "data-skill-custom-url": role,
-                  type: "text",
-                  placeholder: "https://github.com/owner/repo\uFF08\u81EA\u5B9A\u4E49 skill \u4ED3\u5E93\uFF09",
-                  value: urlDraft.url,
-                  disabled: busy,
-                  onChange: (e) => setCustomUrl((m) => ({ ...m, [role]: { ...urlDraft, url: e.target.value } })),
-                  style: { flex: 1, minWidth: 160, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.border}`, borderRadius: 6, background: "transparent", color: C.fg }
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "input",
-                {
-                  "data-skill-custom-name": role,
-                  type: "text",
-                  placeholder: "\u76EE\u5F55\u540D(\u53EF\u9009)",
-                  value: urlDraft.name,
-                  disabled: busy,
-                  onChange: (e) => setCustomUrl((m) => ({ ...m, [role]: { ...urlDraft, name: e.target.value } })),
-                  style: { width: 90, fontSize: 11, padding: "2px 6px", border: `1px solid ${C.border}`, borderRadius: 6, background: "transparent", color: C.fg }
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "button",
-                {
-                  "data-skill-custom-install": role,
-                  disabled: busy || !urlDraft.url.trim(),
-                  onClick: () => {
-                    const body = { action: "install", role, repoUrl: urlDraft.url.trim() };
-                    if (urlDraft.name.trim()) body.name = urlDraft.name.trim();
-                    postManage(body, "\u81EA\u5B9A\u4E49\u6280\u80FD\u5DF2\u5B89\u88C5\uFF08\u6210\u5458 spawn \u540E\u751F\u6548\uFF09");
-                  },
-                  style: { fontSize: 11, padding: "2px 10px", border: `1px solid ${C.accent}`, borderRadius: 6, background: "transparent", color: C.accent, cursor: busy || !urlDraft.url.trim() ? "not-allowed" : "pointer" },
-                  children: "\u5B89\u88C5"
-                }
-              )
-            ] })
-          ] }, role);
-        }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: 10, color: C.faint, margin: "2px 0 0" }, children: "\u5B89\u88C5\u5373 git clone --depth 1 \u5230 role-skills/<\u89D2\u8272>/ \u5E76\u751F\u6210 INDEX.md\uFF1B\u53EA\u6709\u8BE5\u89D2\u8272\u6210\u5458 spawn \u63D0\u793A\u8BCD\u643A\u5E26\u7D22\u5F15\uFF08\u8DE8\u89D2\u8272\u9694\u79BB\uFF09\u3002\u540C\u89D2\u8272\u5DF2 spawn \u7684\u6210\u5458\u4F1A\u81EA\u52A8\u6536\u5230\u65B0\u6280\u80FD\u8DEF\u5F84\uFF0CWeb UI \u5B89\u88C5\uFF08\u65E0 agent\uFF09\u5219\u4E0B\u6B21 spawn \u751F\u6548\u3002" })
-      ]
-    }
-  );
-}
-function TeamTab({ data, openMemberSession, memberOpenAvailable, focusTaskId, onClearFocusTask, refresh }) {
-  const [view, setView] = (0, import_react.useState)("dag");
-  const [resultFilter, setResultFilter] = (0, import_react.useState)(null);
-  const [toast, setToast] = (0, import_react.useState)(null);
-  const toastTimer = (0, import_react.useRef)(null);
-  const notify = (msg) => {
-    setToast(String(msg));
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2600);
-  };
-  (0, import_react.useEffect)(() => () => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-  }, []);
-  const team = data.team || { members: [], tasks: [] };
-  const members = Array.isArray(team.members) ? team.members.filter((m) => m && typeof m.name === "string") : [];
-  const tasks = normalizeTaskBoard(team.tasks);
-  const visibleTasks = (0, import_react.useMemo)(() => tasksForResult(tasks, resultFilter), [tasks, resultFilter]);
-  const onOpenMember = (m) => {
-    try {
-      if (typeof openMemberSession !== "function") throw new Error("\u6210\u5458\u4F1A\u8BDD\u8DF3\u8F6C\u4E0D\u53EF\u7528");
-      openMemberSession(m);
-    } catch (err) {
-      notify(`\u65E0\u6CD5\u6253\u5F00\u6210\u5458\u4F1A\u8BDD\uFF1A${err && err.message || err}`);
-    }
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ProgressOverview, { tasks }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperProgressOverview, { progress: data.blueprint && data.blueprint.paperProgress, selectedId: resultFilter, onSelect: setResultFilter }),
-    members.length === 0 ? (
-      // 空队伍：lead 鲸鱼娘 + 一键建队引导（原花名册空态）
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u56E2\u961F\uFF080\uFF09", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "10px 6px 6px" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 64, style: { display: "inline-flex" } }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u961F\u4F0D\u8FD8\u6CA1\u6709\u6210\u5458\u3002\u5524\u9192\u4F60\u7684\u79D1\u7814\u56E2\u961F\uFF1A\u8BA9\u961F\u957F\u8C03\u7528 sci_team_spawn_all\uFF08\u4E00\u952E\u5EFA\u5168\u961F\uFF09\u6216 sci_team_spawn \u6309\u9700\u751F\u6210\u3002" })
-      ] }) })
-    ) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      Panel,
-      {
-        title: `\u4EFB\u52A1\u6D41 DAG\uFF08${visibleTasks.length}${resultFilter ? ` \xB7 ${resultFilter}` : ""}\uFF09`,
-        extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          ViewToggle,
-          {
-            view,
-            graphValue: "dag",
-            listValue: "list",
-            graphLabel: "\u4EFB\u52A1\u6D41\u56FE",
-            listLabel: "\u5217\u8868\u89C6\u56FE",
-            onChange: setView
-          }
-        ),
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            MemberStrip,
-            {
-              members,
-              tasks,
-              roles: data.roles,
-              memberLive: data.memberLive,
-              openMemberSession: onOpenMember,
-              memberOpenAvailable
-            }
-          ),
-          view === "dag" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            TaskDag,
-            {
-              tasks: visibleTasks,
-              members,
-              roles: data.roles,
-              focusTaskId,
-              onClearFocus: onClearFocusTask
-            }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TaskBoard, { tasks: visibleTasks, focusTaskId, onClearFocus: onClearFocusTask })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u4EFB\u52A1\u56DE\u62A5\u53F0\u8D26", extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "result_note \u6458\u8981\uFF08\u6700\u8FD1 8 \u6761\uFF09" }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CaptainInbox, { tasks, members, roles: data.roles }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SkillMenuSection, { skillMenu: data.skillMenu, roles: data.roles, notify, refresh }),
-    toast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "fixed",
-          left: "50%",
-          bottom: 24,
-          transform: "translateX(-50%)",
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          borderRadius: 8,
-          padding: "6px 14px",
-          fontSize: 12,
-          color: C.fg,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-          zIndex: 9999,
-          maxWidth: "80%"
-        },
-        children: toast
-      }
-    )
-  ] });
-}
-function CoreCard({ core }) {
-  const c = core || {};
-  const hasCore = !!(c.title || c.claim);
-  if (!hasCore) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", padding: "12px 8px 8px", border: `1px dashed ${C.border}`, borderRadius: 8, marginBottom: 8 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 48, style: { display: "inline-flex" } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6587\u7AE0\u84DD\u56FE\u8FD8\u6CA1\u6709\u6838\u5FC3\u3002\u8BA9\u961F\u957F\u7528 sci_blueprint_set \u4E0E\u4F60\u786E\u8BA4\u6807\u9898\u3001\u6838\u5FC3\u4E3B\u5F20\u4E0E\u521B\u65B0\u70B9\uFF0C\u4E4B\u540E\u7684\u4EFB\u52A1\u4E0E\u56FE\u8868\u90FD\u4F1A\u56F4\u7ED5\u5B83\u7EC4\u7EC7\u3002" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { paddingBottom: 6 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_set" }) })
-    ] });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", background: C.card, marginBottom: 8 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 28 }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 15, fontWeight: 700, color: C.fg, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis" }, children: c.title || "\uFF08\u672A\u547D\u540D\uFF09" }),
-      c.confirmed ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-        "span",
-        {
-          "data-core-confirmed": "true",
-          title: "\u6838\u5FC3\u5DF2\u786E\u8BA4\uFF08\u7528\u6237\u540C\u610F\u540E\u7684\u6587\u7AE0\u627F\u8BFA\uFF1B\u4FEE\u6539\u4F1A\u6253\u56DE\u5F85\u786E\u8BA4\uFF09",
-          style: { fontSize: 10, color: C.ok, border: `1px solid ${C.ok}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px", flexShrink: 0 },
-          children: [
-            "\u{1F512} \u5DF2\u786E\u8BA4 r",
-            c.revision || 1
-          ]
-        }
-      ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "span",
-        {
-          "data-core-confirmed": "false",
-          title: "\u6838\u5FC3\u5F85\u786E\u8BA4\uFF1A\u5411\u7528\u6237\u590D\u8FF0\u5E76\u83B7\u540C\u610F\u540E\uFF0C\u961F\u957F\u8C03\u7528 sci_blueprint_confirm kind=core",
-          style: { fontSize: 10, color: C.warn, border: `1px solid ${C.warn}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px", flexShrink: 0 },
-          children: "\u23F3 \u5F85\u786E\u8BA4"
-        }
-      )
-    ] }),
-    c.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 12, color: C.fg, marginTop: 6, lineHeight: 1.6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.accent }, children: "\u4E3B\u5F20" }),
-      " \xB7 ",
-      c.claim
-    ] }),
-    c.innovation && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u521B\u65B0" }),
-      " \xB7 ",
-      c.innovation
-    ] }),
-    c.venue && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.muted, marginTop: 3 }, children: [
-      "\u76EE\u6807\u671F\u520A\uFF1A",
-      c.venue
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint, marginTop: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-      !c.confirmed && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\u786E\u8BA4\u6838\u5FC3\uFF1A" }),
-      !c.confirmed && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "/sci_blueprint_confirm core" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\u4FEE\u6539\u6838\u5FC3\uFF1A" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_set" })
-    ] })
-  ] });
-}
-var REVIEW_SEV_LABEL = { pass: "\u5BA1\u2713", warn: "\u5BA1!", fail: "\u5BA1\u2717", none: "\u672A\u5BA1" };
-var REVIEW_SEV_COLOR = { pass: "ok", warn: "warn", fail: "err", none: "faint" };
-function ReviewBadge({ review }) {
-  const sev = review && review.severity ? review.severity : "none";
-  const color = C[REVIEW_SEV_COLOR[sev] || "faint"] || C.faint;
-  const tip = sev === "none" ? "\u8BE5\u4E3B\u5F20\u5C1A\u65E0\u5BA1\u67E5\u8BB0\u5F55\uFF08check=blueprint-claim\uFF09\u2014\u2014\u7528 /sci-review \u6216 sci_review_send scope=evidence \u8865\u5BA1" : `\u6700\u8FD1\u5BA1\u67E5\uFF08${review.runId || "\u672A\u8BB0\u5F55"}\uFF09\uFF1A${sev}${review.message ? ` \xB7 ${review.message}` : ""}`;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-    "span",
-    {
-      "data-result-review": sev,
-      title: tip,
-      style: { fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: "0 5px", lineHeight: "15px", flexShrink: 0 },
-      children: REVIEW_SEV_LABEL[sev] || sev
-    }
-  );
-}
-function ResultRow({ r, tasksById, onOpenTask, onOpenFigure, review }) {
-  const [open, setOpen] = (0, import_react.useState)(false);
-  const status = r.status || "planned";
-  const tasks = [...resultTaskIdsOf(r, tasksById)];
-  const figures = Array.isArray(r.figures) ? r.figures : [];
-  const confirmed = r.confirmed === true;
-  const refs = Array.isArray(r.references) ? r.references : [];
-  const unverified = refs.filter((x) => x && !x.verified).length;
-  const screening = r.screening || null;
-  const refGroups = [];
-  for (const usedAs of Object.keys(USED_AS_LABEL)) {
-    const group = refs.filter((x) => (x && x.usedAs) === usedAs);
-    if (group.length > 0) refGroups.push([usedAs, group]);
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        "data-result-row": r.id,
-        onClick: () => setOpen(!open),
-        title: `${r.id} \xB7 \u70B9\u51FB${open ? "\u6536\u8D77" : "\u5C55\u5F00"}\u8BE6\u60C5`,
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "5px 8px",
-          marginBottom: 4,
-          border: `1px solid ${C.border}`,
-          borderRadius: 8,
-          background: C.card,
-          fontSize: 12,
-          cursor: "pointer"
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: RESULT_STATUS_COLOR[status] || C.faint, size: 7 }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto" }, children: r.title || r.id }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DepChip, { id: RESULT_STATUS_LABEL[status] || status }),
-          confirmed ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "span",
-            {
-              "data-result-confirmed": "true",
-              title: "\u5DF2\u786E\u8BA4\uFF1A\u7528\u6237\u540C\u610F\u540E\u7684\u5B50\u4E3B\u5F20\uFF08\u4FEE\u6539\u4F1A\u6253\u56DE\u5F85\u786E\u8BA4\uFF09",
-              style: { fontSize: 10, color: C.ok, flexShrink: 0 },
-              children: "\u{1F512}"
-            }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "span",
-            {
-              "data-result-confirmed": "false",
-              title: "\u5F85\u786E\u8BA4\uFF1A\u7528\u6237\u540C\u610F\u524D\u4E0D\u80FD\u6D3E\u53D1\u652F\u6491\u4EFB\u52A1\uFF08dispatch \u4F1A\u62D2\u7EDD\uFF09",
-              style: { fontSize: 10, color: C.warn, border: `1px solid ${C.warn}`, borderRadius: 8, padding: "0 5px", lineHeight: "15px", flexShrink: 0 },
-              children: "\u5F85\u786E\u8BA4"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: [
-            tasks.length,
-            " \u4EFB\u52A1"
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: [
-            figures.length,
-            " \u56FE"
-          ] }),
-          refs.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "span",
-            {
-              "data-result-refs": "",
-              title: `\u53C2\u8003\u6587\u732E ${refs.length} \u6761${unverified > 0 ? `\uFF08${unverified} \u6761\u672A\u6838\u5BF9\uFF09` : "\uFF08\u5168\u90E8\u5DF2\u6838\u5BF9\uFF09"}`,
-              style: { fontSize: 10, color: unverified > 0 ? C.warn : C.ok, flexShrink: 0 },
-              children: [
-                "\u{1F4DA}",
-                refs.length,
-                unverified > 0 ? "?" : ""
-              ]
-            }
-          ),
-          screening && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "span",
-            {
-              "data-result-screening": screening.decision,
-              title: `\u5FEB\u7B5B\uFF1A${screening.decision}${screening.note ? ` \xB7 ${screening.note}` : ""}`,
-              style: { fontSize: 10, color: SCREENING_COLOR[screening.decision] || C.faint, border: `1px solid ${SCREENING_COLOR[screening.decision] || C.faint}`, borderRadius: 8, padding: "0 5px", lineHeight: "15px", flexShrink: 0 },
-              children: SCREENING_LABEL[screening.decision] || screening.decision
-            }
-          ),
-          review && r.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReviewBadge, { review }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: open ? "\u25BE" : "\u25B8" })
-        ]
-      }
-    ),
-    open && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          border: `1px solid ${C.divider}`,
-          borderRadius: 8,
-          padding: "6px 10px",
-          marginBottom: 4,
-          background: C.chip,
-          fontSize: 11,
-          color: C.muted,
-          lineHeight: 1.6
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.faint }, children: [
-            r.id,
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Panel, { title: `\u6587\u7AE0\u7ED3\u6784 \xB7 ${paper.totalResults} \u9879\u7814\u7A76\u7ED3\u679C`, subtitle: "\u6BCF\u9879\u7ED3\u679C\u90FD\u4FDD\u7559\u771F\u5B9E\u72B6\u6001\u3001\u8BC1\u636E\u7F3A\u53E3\u548C\u786E\u8BA4\u95F8\u95E8\u3002", children: paper.results.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "sci-stack", children: paper.results.map((result) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ResultCard, { result: { ...result, coreConfirmed: paper.core.confirmed }, onAction }, result.id)) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "sci-small", children: "\u8FD8\u6CA1\u6709\u7814\u7A76\u7ED3\u679C\u8349\u6848\u3002\u751F\u6210\u6587\u7AE0\u7ED3\u6784\u540E\uFF0C\u5019\u9009\u7ED3\u679C\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" }) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("aside", { className: "sci-col-4 sci-stack", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Panel, { title: "\u4E0B\u4E00\u6B65\u5EFA\u8BAE", subtitle: "\u6839\u636E\u5F53\u524D\u4FDD\u5B58\u72B6\u6001\u751F\u6210", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("h3", { style: { fontSize: 16, margin: "0 0 8px" }, children: nextStep.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { primary: true, onClick: nextAction, children: "\u7EE7\u7EED\u4E0B\u4E00\u6B65" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Panel, { title: "\u8FD1\u671F\u6D3B\u52A8", children: view.team.activity.length ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "sci-stack", children: view.team.activity.slice(0, 4).map((row) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-small", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("b", { children: row.summary }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
+            row.at ? new Date(row.at).toLocaleString() : "\u65F6\u95F4\u672A\u8BB0\u5F55",
             " \xB7 ",
-            RESULT_STATUS_LABEL[status] || status
-          ] }),
-          r.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, color: C.fg }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.accent }, children: "\u4E3B\u5F20\uFF1A" }),
-            r.claim
-          ] }),
-          tasks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flexShrink: 0 }, children: "\u652F\u6491\u4EFB\u52A1\uFF1A" }),
-            tasks.map((tid) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "span",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  try {
-                    if (typeof onOpenTask === "function") onOpenTask(tid);
-                  } catch {
-                  }
-                },
-                title: "\u70B9\u51FB\u524D\u5F80\u56E2\u961F\u4EFB\u52A1\u677F\u67E5\u770B\u8BE6\u60C5",
-                style: {
-                  display: "inline-block",
-                  padding: "0 6px",
-                  borderRadius: 8,
-                  border: `1px solid ${C.border}`,
-                  background: C.card,
-                  fontSize: 10,
-                  lineHeight: "16px",
-                  color: C.muted,
-                  cursor: "pointer",
-                  fontFamily: "ui-monospace, monospace"
-                },
-                children: [
-                  tid,
-                  " \u2192"
-                ]
-              },
-              tid
-            ))
-          ] }),
-          figures.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flexShrink: 0 }, children: "\u56FE\u8868\u8BC1\u636E\uFF1A" }),
-            figures.map((fid) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "span",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  try {
-                    if (typeof onOpenFigure === "function") onOpenFigure(fid);
-                  } catch {
-                  }
-                },
-                title: "\u70B9\u51FB\u524D\u5F80\u4EA7\u7269 tab \u56FE\u5E93\u67E5\u770B",
-                style: {
-                  display: "inline-block",
-                  padding: "0 6px",
-                  borderRadius: 8,
-                  border: `1px solid ${C.border}`,
-                  background: C.card,
-                  fontSize: 10,
-                  lineHeight: "16px",
-                  color: C.muted,
-                  cursor: "pointer",
-                  fontFamily: "ui-monospace, monospace"
-                },
-                children: [
-                  fid,
-                  " \u2192"
-                ]
-              },
-              fid
-            ))
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-result-references": r.id, style: { marginTop: 5, borderTop: `1px dashed ${C.divider}`, paddingTop: 4 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { flexShrink: 0, color: C.fg }, children: [
-                "\u53C2\u8003\u6587\u732E\uFF08",
-                refs.length,
-                unverified > 0 ? `\uFF0C${unverified} \u672A\u6838\u5BF9` : "",
-                "\uFF09\uFF1A"
-              ] }),
-              refs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint }, children: "\u65E0\u2014\u2014\u7528 sci_result_reference_add \u4E3A\u6240\u7528\u65B9\u6CD5/\u6982\u5FF5\u767B\u8BB0" })
-            ] }),
-            refGroups.map(([usedAs, group]) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, display: "flex", alignItems: "flex-start", gap: 4, flexWrap: "wrap" }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flexShrink: 0, color: C.accent, fontSize: 10, minWidth: 34 }, children: USED_AS_LABEL[usedAs] }),
-              group.map((ref, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "span",
-                {
-                  "data-ref-verified": ref.verified ? "true" : "false",
-                  title: `${ref.verified ? "\u2713 \u5DF2\u6838\u5BF9\uFF08Crossref\uFF09" : "\u26A0 \u672A\u6838\u5BF9"}${ref.doi ? ` \xB7 doi:${ref.doi}` : ""} \xB7 ${ref.title || ""}${Array.isArray(ref.claimIds) && ref.claimIds.length ? ` \xB7 Claim: ${ref.claimIds.join("\u3001")}` : ""}${ref.relation ? ` \xB7 ${ref.relation}` : ""}${ref.sourceLocator ? ` \xB7 \u5B9A\u4F4D: ${ref.sourceLocator}` : ""}${ref.verifyError ? ` \xB7 ${ref.verifyError}` : ""}`,
-                  style: {
-                    display: "inline-block",
-                    padding: "0 6px",
-                    borderRadius: 8,
-                    border: `1px solid ${ref.verified ? C.ok : C.warn}`,
-                    background: C.card,
-                    fontSize: 10,
-                    lineHeight: "16px",
-                    color: ref.verified ? C.ok : C.warn,
-                    maxWidth: 200,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap"
-                  },
-                  children: [
-                    ref.verified ? "\u2713" : "\u26A0",
-                    " ",
-                    ref.title || (ref.doi ? `doi:${ref.doi}` : "\uFF08\u65E0\u6807\u9898\uFF09"),
-                    Array.isArray(ref.claimIds) && ref.claimIds.length ? ` \u2192 ${ref.claimIds.length} Claim` : ""
-                  ]
-                },
-                `${ref.doi || ref.title}:${i}`
-              ))
-            ] }, usedAs)),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u6DFB\u52A0\u6587\u732E\uFF1A" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=method claim_ids=[<claim-id>]` }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=concept` }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=background` }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_add result_id=${r.id} used_as=evidence` }),
-              refs.some((x) => x && x.doi) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_verify result_id=${r.id} ref_doi=<DOI> used_as=<\u7528\u9014>` }),
-              refs.some((x) => x && x.doi) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_reference_remove result_id=${r.id} ref_doi=<DOI> used_as=<\u7528\u9014>` })
-            ] })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-            !confirmed && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.warn }, children: "\u786E\u8BA4\u8BE5 result\uFF1A" }),
-            !confirmed && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `/sci_blueprint_confirm ${r.id}` }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.faint }, children: "\u5FEB\u7B5B\uFF1A" }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_screening result_id=${r.id} decision=include` })
-          ] }),
-          r.notes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: status === "negative" ? C.err : C.ok }, children: "notes\uFF1A" }),
-            r.notes
+            row.status
           ] })
-        ]
-      }
-    )
+        ] }, row.id)) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "sci-small", children: "\u6682\u65E0\u4EFB\u52A1\u56DE\u62A5\u8BB0\u5F55\u3002" }) }),
+        view.team.blockedTasks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Panel, { title: "\u5F53\u524D\u963B\u585E", subtitle: `${view.team.blockedTasks.length} \u9879\u4EFB\u52A1\u6709\u672A\u5B8C\u6210\u4F9D\u8D56`, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ul", { className: "sci-note-list", children: view.team.blockedTasks.slice(0, 5).map((task) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("li", { children: [
+            task.subject || task.id,
+            "\uFF1A",
+            task.blockers.join("\uFF1B")
+          ] }, task.id)) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: () => onNavigate("team"), children: "\u67E5\u770B\u56E2\u961F\u8FDB\u5C55" })
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "sci-result-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: () => onAction("literature"), children: "\u6269\u5C55\u6587\u732E\u63A2\u7D22" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: () => onAction("write"), children: "\u64B0\u5199\u8BBA\u6587" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button, { small: true, onClick: () => onNavigate("artifacts"), children: "\u67E5\u770B\u56FE\u8868\u4E0E\u6210\u679C" })
+    ] })
   ] });
 }
-function ResultsList({ results, tasksById, onOpenTask, onOpenFigure, reviewById }) {
-  if (results.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709 Results\u3002\u8BA9\u961F\u957F\u7528 sci_result_add \u6DFB\u52A0\u652F\u6491\u6838\u5FC3\u7684\u5B50\u4E3B\u5F20\uFF08\u5EFA\u8BAE 3-5 \u4E2A\uFF0C\u6BCF\u4E2A\u4E00\u53E5\u53EF\u68C0\u9A8C\u7684 claim\uFF09\u3002" });
+
+// client-src/workbench/TeamProgressPage.jsx
+var import_react4 = __toESM(require("react"), 1);
+var import_jsx_runtime3 = require("react/jsx-runtime");
+function graphLayout(tasks) {
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  const depthCache = /* @__PURE__ */ new Map();
+  const depthOf = (task, visiting = /* @__PURE__ */ new Set()) => {
+    if (depthCache.has(task.id)) return depthCache.get(task.id);
+    if (visiting.has(task.id)) return 0;
+    const nextVisiting = new Set(visiting).add(task.id);
+    const dependencies = Array.isArray(task.blockedBy) ? task.blockedBy.map((id) => byId.get(id)).filter(Boolean) : [];
+    const depth = dependencies.length ? Math.min(6, 1 + Math.max(...dependencies.map((dep) => depthOf(dep, nextVisiting)))) : 0;
+    depthCache.set(task.id, depth);
+    return depth;
+  };
+  const columns = [];
+  for (const task of tasks) {
+    const depth = depthOf(task);
+    columns[depth] ||= [];
+    columns[depth].push(task);
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: results.map((r) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResultRow, { r, tasksById, onOpenTask, onOpenFigure, review: reviewById ? reviewById.get(r.id) : null }, r.id)) });
+  columns.forEach((column) => column?.sort((a, b) => String(a.id).localeCompare(String(b.id), void 0, { numeric: true })));
+  const position = /* @__PURE__ */ new Map();
+  columns.forEach((column, col) => column?.forEach((task, row) => position.set(task.id, { x: col * 228, y: row * 96 })));
+  const width = Math.max(228, columns.length * 228);
+  const height = Math.max(180, ...columns.map((col) => col?.length * 96 || 0));
+  return { columns, position, width, height, byId };
 }
-var FG_PAD = 12;
-var FG_CORE_W = 240;
-var FG_CORE_H = 64;
-var FG_RES_W = 210;
-var FG_RES_H = 88;
-var FG_LEAF_W = 168;
-var FG_LEAF_H = 24;
-var FG_RES_GAP = 34;
-var FG_LEAF_GAP = 6;
-var FG_LEAF_INDENT = 22;
-var FG_CORE_GAP = 44;
-var FG_LEAF_CAP = 8;
-function resultTaskIdsOf(r, tasksById) {
-  const ids = new Set(Array.isArray(r && r.tasks) ? r.tasks : []);
-  if (r && r.id && tasksById) {
-    for (const t of tasksById.values()) {
-      if (t && (t.resultId === r.id || Array.isArray(t.resultIds) && t.resultIds.includes(r.id))) ids.add(t.id);
+var STATE_TONE = { completed: "good", failed: "bad", blocked: "warn", in_progress: "default", claimed: "default", pending: "default" };
+function TeamProgressPage({ view, openMemberSession, memberOpenAvailable }) {
+  const [mode, setMode] = (0, import_react4.useState)("graph");
+  const [memberError, setMemberError] = (0, import_react4.useState)(null);
+  const tasks = view.team.tasks;
+  const layout = (0, import_react4.useMemo)(() => graphLayout(tasks), [tasks]);
+  const openMember = async (member) => {
+    try {
+      await openMemberSession(member);
+      setMemberError(null);
+    } catch (error) {
+      setMemberError({ member, message: error?.message || "\u65E0\u6CD5\u6253\u5F00\u8BE5\u6210\u5458\u4F1A\u8BDD\u3002" });
     }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-stack", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-stat-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-stat", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: view.team.counts.running }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u8FD0\u884C\u4E2D" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-stat", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: view.team.counts.waiting }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u7B49\u5F85\u4E2D" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-stat", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: view.team.counts.completed }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u5DF2\u5B8C\u6210" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-stat", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: view.team.counts.blocked }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: "\u53D7\u963B" })
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Panel, { title: "\u7814\u7A76\u56E2\u961F", subtitle: "\u6210\u5458\u72B6\u6001\u548C\u5F53\u524D\u8D1F\u8D23\u7684\u4EFB\u52A1\u3002\u70B9\u51FB\u6210\u5458\u53EF\u67E5\u770B\u5BF9\u5E94\u4F1A\u8BDD\u3002", children: [
+      memberError && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(StatusMessage, { tone: "error", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("b", { children: [
+          memberError.member.name || "\u6210\u5458",
+          "\u4F1A\u8BDD\u672A\u80FD\u6253\u5F00\u3002"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { children: memberError.message }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-result-actions", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Button, { small: true, onClick: () => openMember(memberError.member), children: "\u91CD\u8BD5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Button, { small: true, onClick: () => setMemberError(null), children: "\u5173\u95ED\u63D0\u793A" })
+        ] })
+      ] }),
+      view.team.members.length ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-members", children: view.team.members.map((member) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-member", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-result-top", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h3", { children: view.experts.roles?.[member.role]?.label || member.role || member.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Badge, { tone: member.liveStatusTone, children: member.liveStatusLabel })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: member.currentTasks.length ? member.currentTasks.map((task) => task.subject || task.id).join("\uFF1B") : "\u5F53\u524D\u6CA1\u6709\u8FDB\u884C\u4E2D\u7684\u4EFB\u52A1" }),
+        member.lastReport && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("p", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: "\u6700\u8FD1\u56DE\u62A5\uFF1A" }),
+          member.lastReport
+        ] }),
+        memberOpenAvailable && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-result-actions", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Button, { small: true, onClick: () => openMember(member), children: "\u6253\u5F00\u6210\u5458\u4F1A\u8BDD" }) })
+      ] }, member.name)) }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(EmptyState, { title: "\u56E2\u961F\u5C1A\u672A\u542F\u52A8", children: "\u5F00\u59CB\u7EC6\u5316\u5DF2\u786E\u8BA4\u7684\u7814\u7A76\u7ED3\u679C\u540E\uFF0C\u56E2\u961F\u4EFB\u52A1\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Panel, { title: "\u6267\u884C\u4EFB\u52A1", subtitle: "\u4F9D\u8D56\u7EBF\u4ECE\u4E0A\u6E38\u4EFB\u52A1\u6307\u5411\u7B49\u5F85\u5B83\u5B8C\u6210\u7684\u4EFB\u52A1\u3002", action: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-result-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Button, { small: true, onClick: () => setMode("graph"), "aria-pressed": mode === "graph", children: "\u4F9D\u8D56\u56FE" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Button, { small: true, onClick: () => setMode("list"), "aria-pressed": mode === "list", children: "\u5217\u8868" })
+    ] }), children: tasks.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-small", children: "\u8FD8\u6CA1\u6709\u8BB0\u5F55\u7684\u6267\u884C\u4EFB\u52A1\u3002" }) : mode === "list" ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-task-list", children: tasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-task-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: task.subject || task.id }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-small", children: task.description || task.resultIds.join("\u3001") || "\u672A\u5173\u8054\u7814\u7A76\u7ED3\u679C" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { children: task.assignee || "\u672A\u5206\u914D" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Badge, { tone: STATE_TONE[task.status], children: task.label }),
+      task.blockers.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-small", children: [
+        "\u963B\u585E\uFF1A",
+        task.blockers.join("\uFF1B")
+      ] })
+    ] }, task.id)) }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-task-graph", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-task-canvas", style: { width: layout.width, height: layout.height }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("svg", { className: "sci-task-lines", width: layout.width, height: layout.height, viewBox: `0 0 ${layout.width} ${layout.height}`, "aria-hidden": "true", children: [
+        tasks.flatMap((task) => (task.blockedBy || []).map((id) => {
+          const from = layout.position.get(id), to = layout.position.get(task.id);
+          if (!from || !to) return null;
+          const startX = from.x + 188, startY = from.y + 36, endX = to.x, endY = to.y + 36, bend = Math.max(22, (endX - startX) / 2);
+          return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { className: "sci-task-line", d: `M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`, markerEnd: "url(#sci-arrow)" }, `${id}-${task.id}`);
+        })),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("marker", { id: "sci-arrow", markerWidth: "7", markerHeight: "7", refX: "6", refY: "3.5", orient: "auto", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("path", { d: "M0,0 L7,3.5 L0,7", fill: "none", stroke: "currentColor" }) }) })
+      ] }),
+      tasks.map((task) => {
+        const point = layout.position.get(task.id);
+        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-task-node", style: { left: point.x, top: point.y }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: task.subject || task.id }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+            task.assignee || "\u672A\u5206\u914D",
+            " \xB7 ",
+            task.label
+          ] }),
+          task.resultIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: task.resultIds.join("\u3001") })
+        ] }, task.id);
+      })
+    ] }) }) }),
+    view.team.blockedTasks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Panel, { title: "\u53D7\u963B\u4E8B\u9879", subtitle: "\u53EA\u5217\u51FA\u660E\u786E\u7684\u672A\u5B8C\u6210\u4F9D\u8D56\u6216\u88AB\u6807\u8BB0\u4E3A\u963B\u585E\u7684\u4EFB\u52A1\u3002", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-task-list", children: view.team.blockedTasks.map((task) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-task-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: task.subject || task.id }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "sci-small", children: task.blockers.join("\uFF1B") }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Badge, { tone: "warn", children: "\u53D7\u963B" })
+    ] }, task.id)) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Panel, { title: "\u6700\u8FD1\u56DE\u62A5", children: view.team.activity.length ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-task-list", children: view.team.activity.map((item) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "sci-task-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("b", { children: item.summary }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "sci-small", children: item.resultIds.length ? `\u5173\u8054\u7ED3\u679C\uFF1A${item.resultIds.join("\u3001")}` : "\u672A\u5173\u8054\u7ED3\u679C" }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "sci-small", children: item.at ? new Date(item.at).toLocaleString() : "\u65F6\u95F4\u672A\u8BB0\u5F55" })
+    ] }, item.id)) }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "sci-small", children: "\u6682\u65E0\u6210\u5458\u56DE\u62A5\u3002" }) })
+  ] });
+}
+
+// client-src/workbench/ArtifactsPage.jsx
+var import_react5 = __toESM(require("react"), 1);
+
+// client-src/workbench/bounded-list.js
+function visibleItems(items, expanded = false, limit = 5) {
+  const rows = Array.isArray(items) ? items : [];
+  const safeLimit = Number.isFinite(limit) && limit >= 0 ? Math.floor(limit) : 5;
+  return expanded ? rows : rows.slice(0, safeLimit);
+}
+
+// client-src/workbench/ArtifactsPage.jsx
+var import_jsx_runtime4 = require("react/jsx-runtime");
+var ARTIFACT_PREVIEW_LIMIT = 5;
+function timestampLabel(value) {
+  const time = Number(value || 0);
+  return Number.isFinite(time) && time > 0 ? new Date(time).toLocaleString() : "\u65F6\u95F4\u672A\u8BB0\u5F55";
+}
+function retryUrl(url, attempt) {
+  if (!url || !attempt) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}previewAttempt=${attempt}`;
+}
+function ImagePreview({ figure, compact = false }) {
+  const [failed, setFailed] = (0, import_react5.useState)(false);
+  const [attempt, setAttempt] = (0, import_react5.useState)(0);
+  const retry = () => {
+    setFailed(false);
+    setAttempt((value) => value + 1);
+  };
+  if (!figure.previewable || !figure.url || failed) {
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-image-fallback sci-empty", role: failed ? "alert" : "status", style: { minHeight: compact ? 180 : 260 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: failed ? "\u56FE\u7247\u672A\u80FD\u52A0\u8F7D" : "\u6B64\u6587\u4EF6\u4E0D\u9002\u5408\u5185\u5D4C\u9884\u89C8" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "sci-small", children: failed ? "\u6587\u4EF6\u53EF\u80FD\u4E0D\u5B58\u5728\u3001\u683C\u5F0F\u4E0D\u53D7\u6D4F\u89C8\u5668\u652F\u6301\uFF0C\u6216\u5F53\u524D\u5DE5\u4F5C\u533A\u65E0\u6CD5\u8BFB\u53D6\u3002" : figure.path?.split(".").pop()?.toUpperCase() || "\u6587\u4EF6" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-result-actions", children: [
+        figure.previewable && figure.url && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { small: true, onClick: retry, children: "\u91CD\u65B0\u52A0\u8F7D" }),
+        figure.url && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("a", { className: "sci-button sci-button-small", href: figure.url, target: "_blank", rel: "noreferrer", children: "\u6253\u5F00\u539F\u6587\u4EF6" })
+      ] })
+    ] });
   }
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    "img",
+    {
+      className: compact ? "sci-figure-image-compact" : "sci-figure-image-large",
+      src: retryUrl(figure.url, attempt),
+      alt: figure.title,
+      loading: compact ? "lazy" : void 0,
+      onError: () => setFailed(true),
+      style: compact ? { width: "100%", height: 180, objectFit: "contain", background: "var(--sci-raised)", display: "block" } : { maxWidth: "100%", maxHeight: "70vh", display: "block", margin: "0 auto", objectFit: "contain" }
+    },
+    attempt
+  );
+}
+function FigureCard({ figure, previous, onOpen, onCompare }) {
+  const audit = figure.audit?.overallStatus || figure.audit?.status;
+  const manual = audit === "approved" ? "\u4EBA\u5DE5\u7EC8\u5BA1\u5DF2\u6279\u51C6" : audit === "ready-for-manual-review" ? "\u7B49\u5F85\u4EBA\u5DE5\u7EC8\u5BA1" : audit ? `\u524D\u68C0\u72B6\u6001\uFF1A${audit}` : "\u5C1A\u65E0\u524D\u68C0\u8BB0\u5F55";
+  const dimensions = figure.width && figure.height ? `${figure.width} \xD7 ${figure.height}${figure.unit ? ` ${figure.unit}` : ""}` : figure.dimensions || "\u5C3A\u5BF8\u672A\u8BB0\u5F55";
+  const previousLabel = figure.previousVersionRelation === "recorded" ? "\u4E0A\u4E00\u767B\u8BB0\u7248\u672C" : "\u53EF\u80FD\u7684\u4E0A\u4E00\u6761\u540C\u540D\u8BB0\u5F55\uFF08\u63A8\u6D4B\uFF09";
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("article", { className: "sci-figure", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-figure-preview", role: "group", "aria-label": `\u56FE\u4EF6\u9884\u89C8\uFF1A${figure.title}`, style: { width: "100%", padding: 0, color: "inherit", textAlign: "left", font: "inherit" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ImagePreview, { figure, compact: true }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-figure-copy", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: figure.title }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+          figure.resultId || "\u672A\u5173\u8054\u7814\u7A76\u7ED3\u679C",
+          " \xB7 ",
+          figure.version ? `\u7248\u672C ${figure.version}` : "\u7248\u672C\u672A\u8BB0\u5F55"
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+          dimensions,
+          " \xB7 ",
+          manual
+        ] })
+      ] })
+    ] }),
+    previous && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-figure-history", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { children: [
+        previousLabel,
+        "\uFF1A",
+        previous.version ? `\u7248\u672C ${previous.version}` : previous.title
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: timestampLabel(previous.registeredAt || previous.createdAt) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-result-actions sci-figure-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { small: true, onClick: () => onOpen(figure), children: "\u653E\u5927\u67E5\u770B" }),
+      previous && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { small: true, onClick: () => onCompare({ current: figure, previous }), children: figure.previousVersionRelation === "recorded" ? "\u5BF9\u6BD4\u4E0A\u4E00\u7248\u672C" : "\u5BF9\u6BD4\u4E0A\u4E00\u6761\u8BB0\u5F55" }),
+      figure.url && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("a", { className: "sci-button sci-button-small", href: figure.url, target: "_blank", rel: "noreferrer", children: "\u6253\u5F00\u6587\u4EF6" })
+    ] })
+  ] });
+}
+function FileGroup({ group }) {
+  const [expanded, setExpanded] = (0, import_react5.useState)(false);
+  const items = visibleItems(group.items, expanded, ARTIFACT_PREVIEW_LIMIT);
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-group", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("h3", { children: [
+      group.label,
+      " ",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "sci-small", children: [
+        "\u5171 ",
+        group.items.length,
+        " \u9879"
+      ] })
+    ] }),
+    group.items.length ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-file-list", children: items.map((file) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-file", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: file.path.split(/[\\/]/).pop() || file.path }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "sci-small", children: file.path })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("a", { className: "sci-button sci-button-small", href: file.url, target: "_blank", rel: "noreferrer", children: "\u6253\u5F00" })
+      ] }, file.path)) }),
+      group.items.length > ARTIFACT_PREVIEW_LIMIT && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", className: "sci-button sci-button-small", "aria-expanded": expanded, onClick: () => setExpanded((value) => !value), children: expanded ? "\u6536\u8D77" : `\u67E5\u770B\u5168\u90E8 ${group.items.length} \u9879` })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-small", children: [
+      "\u6682\u65E0",
+      group.label,
+      "\u3002"
+    ] })
+  ] });
+}
+function ReviewGroup({ reviews }) {
+  const [expanded, setExpanded] = (0, import_react5.useState)(false);
+  const items = visibleItems(reviews, expanded, ARTIFACT_PREVIEW_LIMIT);
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-group", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("h3", { children: [
+      "\u5BA1\u67E5\u8BB0\u5F55 ",
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("span", { className: "sci-small", children: [
+        "\u5171 ",
+        reviews.length,
+        " \u6761"
+      ] })
+    ] }),
+    reviews.length ? /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-task-list", children: items.map((review) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-task-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("b", { children: review.resultTitle || review.scope || review.runId || "\u4E3B\u5F20\u5BA1\u67E5" }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-small", children: review.message || review.summary || "\u6458\u8981\u672A\u63D0\u4F9B" })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Badge, { tone: review.severity === "fail" ? "bad" : review.severity === "warn" ? "warn" : "default", children: review.severity || "\u72B6\u6001\u5F85\u6838\u5BF9" })
+      ] }, review.runId || review.id || JSON.stringify(review))) }),
+      reviews.length > ARTIFACT_PREVIEW_LIMIT && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", className: "sci-button sci-button-small", "aria-expanded": expanded, onClick: () => setExpanded((value) => !value), children: expanded ? "\u6536\u8D77" : `\u67E5\u770B\u5168\u90E8 ${reviews.length} \u6761` })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-small", children: "\u6682\u65E0\u5BA1\u67E5\u8BB0\u5F55\u3002" })
+  ] });
+}
+function FigureDialog({ figure, onClose }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-modal-backdrop", role: "presentation", onMouseDown: (event) => {
+    if (event.target === event.currentTarget) onClose();
+  }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "sci-modal", role: "dialog", "aria-modal": "true", "aria-label": `\u56FE\u4EF6\u9884\u89C8\uFF1A${figure.title}`, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-panel-heading", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h2", { children: figure.title }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: figure.resultId || "\u672A\u5173\u8054\u7814\u7A76\u7ED3\u679C" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { onClick: onClose, children: "\u5173\u95ED" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ImagePreview, { figure }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-small", style: { marginTop: 12 }, children: [
+      figure.version ? `\u767B\u8BB0\u7248\u672C ${figure.version}` : "\u767B\u8BB0\u7248\u672C\u672A\u8BB0\u5F55",
+      " \xB7 ",
+      timestampLabel(figure.registeredAt || figure.createdAt),
+      " \xB7 ",
+      figure.path || "\u6587\u4EF6\u8DEF\u5F84\u672A\u8BB0\u5F55"
+    ] })
+  ] }) });
+}
+function FigureCompareDialog({ comparison, onClose }) {
+  const { current, previous } = comparison;
+  const inferred = current.previousVersionRelation !== "recorded";
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-modal-backdrop", role: "presentation", onMouseDown: (event) => {
+    if (event.target === event.currentTarget) onClose();
+  }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "sci-modal sci-modal-wide", role: "dialog", "aria-modal": "true", "aria-label": `\u56FE\u4EF6\u7248\u672C\u5BF9\u6BD4\uFF1A${current.title}`, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-panel-heading", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h2", { children: "\u56FE\u4EF6\u7248\u672C\u5BF9\u6BD4" }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: inferred ? "\u4E0A\u4E00\u6761\u8BB0\u5F55\u6309\u540C\u4E00\u7814\u7A76\u7ED3\u679C\u3001\u540C\u540D\u6587\u4EF6\u548C\u65F6\u95F4\u987A\u5E8F\u63A8\u6D4B\uFF1B\u540E\u7AEF\u672A\u8BB0\u5F55\u7248\u672C\u5173\u7CFB\u3002" : "\u4E0A\u4E00\u7248\u672C\u6765\u81EA\u540E\u7AEF\u767B\u8BB0\u7684 prevId \u7248\u672C\u94FE\u3002" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { onClick: onClose, children: "\u5173\u95ED" })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-compare-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 18 }, children: [previous, current].map((figure, index) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("article", { className: "sci-compare-item", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("h3", { children: index === 0 ? inferred ? "\u8F83\u65E9\u7684\u540C\u540D\u8BB0\u5F55\uFF08\u63A8\u6D4B\uFF09" : "\u4E0A\u4E00\u767B\u8BB0\u7248\u672C" : "\u5F53\u524D\u8BB0\u5F55" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-small", children: [
+        figure.version ? `\u7248\u672C ${figure.version}` : "\u7248\u672C\u672A\u8BB0\u5F55",
+        " \xB7 ",
+        timestampLabel(figure.registeredAt || figure.createdAt)
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ImagePreview, { figure }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-small", children: figure.path || "\u6587\u4EF6\u8DEF\u5F84\u672A\u8BB0\u5F55" })
+    ] }, figure.id || figure.path)) })
+  ] }) });
+}
+function ArtifactsPage({ view, onAction }) {
+  const [preview, setPreview] = (0, import_react5.useState)(null);
+  const [comparison, setComparison] = (0, import_react5.useState)(null);
+  const figures = view.artifacts.figures;
+  const figureById = new Map(figures.filter((figure) => figure.id).map((figure) => [figure.id, figure]));
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-stack", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Panel, { title: "\u56FE\u8868", subtitle: "\u56FE\u4EF6\u4F1A\u5728\u6D4F\u89C8\u5668\u5B9E\u9645\u52A0\u8F7D\u6210\u529F\u540E\u663E\u793A\uFF1B\u52A0\u8F7D\u5931\u8D25\u65F6\u53EF\u91CD\u8BD5\u6216\u76F4\u63A5\u6253\u5F00\u6587\u4EF6\u3002\u767B\u8BB0\u8FC7\u7248\u672C\u5173\u7CFB\u7684\u56FE\u4EF6\u53EF\u5E76\u6392\u6BD4\u8F83\u3002", action: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { primary: true, onClick: () => onAction("draw", view.paper.results.find((item) => item.confirmed)?.id || null), disabled: !view.paper.results.some((item) => item.confirmed && view.paper.core.confirmed), title: !view.paper.results.some((item) => item.confirmed && view.paper.core.confirmed) ? "\u5148\u786E\u8BA4\u6838\u5FC3\u7ED3\u8BBA\u548C\u4E00\u9879\u7814\u7A76\u7ED3\u679C\uFF0C\u518D\u5EFA\u7ACB\u6B63\u5F0F\u7ED8\u56FE\u8BA1\u5212\u3002" : void 0, children: "\u57FA\u4E8E\u73B0\u6709\u7ED3\u679C\u5F00\u59CB\u7ED8\u56FE" }), children: figures.length ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "sci-gallery", children: figures.map((figure) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(FigureCard, { figure, previous: figureById.get(figure.previousVersionId), onOpen: setPreview, onCompare: setComparison }, figure.id || figure.path)) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(EmptyState, { title: "\u8FD8\u6CA1\u6709\u767B\u8BB0\u56FE\u4EF6", children: "\u57FA\u4E8E\u5DF2\u786E\u8BA4\u7684\u6838\u5FC3\u7ED3\u8BBA\u548C\u7814\u7A76\u7ED3\u679C\u5EFA\u7ACB\u7ED8\u56FE\u8BA1\u5212\u540E\uFF0C\u56FE\u4EF6\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC\u3002" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Panel, { title: "\u5176\u4ED6\u6210\u679C", subtitle: "\u6309\u7528\u9014\u5206\u7EC4\u6D4F\u89C8\u5DE5\u4F5C\u533A\u6587\u4EF6\u3002", children: [
+      view.artifacts.groups.filter((group) => group.id !== "figures").map((group) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(FileGroup, { group }, group.id)),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ReviewGroup, { reviews: view.artifacts.reviews })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "sci-result-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { onClick: () => onAction("write"), children: "\u64B0\u5199\u8BBA\u6587" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Button, { onClick: () => onAction("slides"), children: "\u5236\u4F5C\u6C47\u62A5 PPT" })
+    ] }),
+    preview && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(FigureDialog, { figure: preview, onClose: () => setPreview(null) }, preview.id || preview.path),
+    comparison && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(FigureCompareDialog, { comparison, onClose: () => setComparison(null) }, `${comparison.previous.id}:${comparison.current.id}`)
+  ] });
+}
+
+// client-src/workbench/ExpertSetupPage.jsx
+var import_react6 = __toESM(require("react"), 1);
+var import_jsx_runtime5 = require("react/jsx-runtime");
+var tool = (name, category) => ({
+  name,
+  category,
+  environment: "\u672C\u673A\u8FD0\u884C\u4F9D\u8D56\u672A\u63A2\u6D4B\uFF1B\u9700\u6309\u5DE5\u5177\u5B98\u65B9\u6587\u6863\u6838\u5BF9\u3002",
+  status: "\u672C\u673A\u5B89\u88C5\u72B6\u6001\u4E0E\u7248\u672C\u672A\u68C0\u6D4B\u3002"
+});
+var ROLE_INFO = {
+  simulator: { title: "\u8BA1\u7B97\u6A21\u62DF\u4E13\u5BB6", purpose: "\u5206\u5B50\u52A8\u529B\u5B66\u3001\u5206\u5B50\u5BF9\u63A5\u4E0E\u86CB\u767D\u590D\u5408\u7269\u5EFA\u6A21\u3002", tools: [tool("GROMACS", "\u5206\u5B50\u52A8\u529B\u5B66\u8F6F\u4EF6"), tool("OpenMM", "\u5206\u5B50\u52A8\u529B\u5B66\u6846\u67B6"), tool("NAMD", "\u5206\u5B50\u52A8\u529B\u5B66\u8F6F\u4EF6"), tool("Boltz", "\u86CB\u767D\u8D28\u7ED3\u6784/\u590D\u5408\u7269\u9884\u6D4B"), tool("AutoDock Vina", "\u5206\u5B50\u5BF9\u63A5\u8F6F\u4EF6"), tool("ORCA", "\u91CF\u5B50\u5316\u5B66\u8F6F\u4EF6"), tool("Quantum ESPRESSO", "\u7B2C\u4E00\u6027\u539F\u7406\u8BA1\u7B97\u8F6F\u4EF6")] },
+  trainer: { title: "\u6A21\u578B\u8BAD\u7EC3\u4E13\u5BB6", purpose: "\u86CB\u767D\u8D28\u8BED\u8A00\u6A21\u578B\u3001\u53EF\u590D\u73B0\u8BAD\u7EC3\u4E0E\u53C2\u6570\u9AD8\u6548\u5FAE\u8C03\u3002", tools: [tool("ESM / ESMC", "\u86CB\u767D\u8D28\u8BED\u8A00\u6A21\u578B"), tool("ProtT5", "\u86CB\u767D\u8D28\u8BED\u8A00\u6A21\u578B"), tool("PyTorch Lightning", "\u6DF1\u5EA6\u5B66\u4E60\u8BAD\u7EC3\u6846\u67B6"), tool("Hugging Face / PEFT", "\u6A21\u578B\u4E0E\u53C2\u6570\u9AD8\u6548\u5FAE\u8C03\u5DE5\u5177")] },
+  "figure-expert": { title: "\u79D1\u7814\u7ED8\u56FE\u4E13\u5BB6", purpose: "\u7EC4\u5B66\u7EDF\u8BA1\u56FE\u3001\u7ED3\u6784\u4E0E\u4E92\u4F5C\u56FE\u3001\u673A\u5236\u793A\u610F\u56FE\u548C\u6295\u7A3F\u524D\u68C0\u67E5\u3002", tools: [tool("Matplotlib / Seaborn / Plotly", "\u6570\u636E\u53EF\u89C6\u5316\u5E93"), tool("\u7ED3\u6784\u89C6\u56FE\u4E0E\u4E92\u4F5C\u56FE", "\u7ED3\u6784\u5206\u6790\u4E0E\u7ED8\u56FE\u5DE5\u5177"), tool("\u53EF\u7F16\u8F91 SVG / PDF", "\u77E2\u91CF\u56FE\u683C\u5F0F")] },
+  analyst: { title: "\u6570\u636E\u5206\u6790\u5E08", purpose: "NGS\u3001\u5355\u7EC6\u80DE\u3001\u7A7A\u95F4\u7EC4\u5B66\u3001\u86CB\u767D\u8D28\u7EC4\u548C\u5E38\u89C4\u751F\u7269\u7EDF\u8BA1\u3002", tools: [tool("FastQC / MultiQC", "\u6D4B\u5E8F\u8D28\u63A7\u5DE5\u5177"), tool("DESeq2 / edgeR", "\u5DEE\u5F02\u8868\u8FBE\u5206\u6790\u5305"), tool("Scanpy / Seurat", "\u5355\u7EC6\u80DE\u5206\u6790\u5DE5\u5177"), tool("R / Python", "\u7EDF\u8BA1\u4E0E\u811A\u672C\u8BED\u8A00")] },
+  "literature-scout": { title: "\u6587\u732E\u8C03\u7814\u4E13\u5458", purpose: "\u7CFB\u7EDF\u68C0\u7D22\u3001\u7B5B\u9009\u548C\u6838\u5BF9\u7814\u7A76\u8BC1\u636E\u3002", tools: [tool("PubMed / Europe PMC", "\u6587\u732E\u6570\u636E\u5E93"), tool("Crossref / DOI \u6821\u9A8C", "\u4E66\u76EE\u4E0E\u6807\u8BC6\u7B26\u670D\u52A1"), tool("\u7CFB\u7EDF\u7EFC\u8FF0\u8BB0\u5F55", "\u8BC1\u636E\u6574\u7406\u65B9\u6CD5")] },
+  "topic-designer": { title: "\u8BFE\u9898\u8BBE\u8BA1\u4E13\u5BB6", purpose: "\u7814\u7A76\u95EE\u9898\u3001\u5B9E\u9A8C\u8BBE\u8BA1\u3001\u5173\u952E\u5BF9\u7167\u548C\u53EF\u68C0\u9A8C\u5047\u8BBE\u3002", tools: [tool("\u7814\u7A76\u8BBE\u8BA1\u4E0E\u529F\u6548\u5206\u6790", "\u7EDF\u8BA1\u8BBE\u8BA1\u65B9\u6CD5"), tool("\u56E0\u679C\u56FE\u4E0E\u53CD\u8BC1\u6761\u4EF6", "\u56E0\u679C\u63A8\u7406\u65B9\u6CD5"), tool("\u5B9E\u9A8C\u53EF\u884C\u6027\u8BC4\u4F30", "\u65B9\u6848\u8BC4\u4F30\u65B9\u6CD5")] },
+  writer: { title: "\u6587\u7AE0\u64B0\u5199\u4E13\u5BB6", purpose: "\u56F4\u7ED5\u5DF2\u786E\u8BA4\u7ED3\u679C\u7EC4\u7EC7\u7A3F\u4EF6\uFF0C\u4E0D\u8865\u9020\u8BC1\u636E\u3002", tools: [tool("\u8BBA\u6587\u7ED3\u6784\u4E0E\u671F\u520A\u683C\u5F0F", "\u5199\u4F5C\u89C4\u8303"), tool("\u5F15\u6587\u548C\u56FE\u8868\u5B9A\u4F4D", "\u7A3F\u4EF6\u7EC4\u7EC7\u65B9\u6CD5"), tool("\u4E2D\u82F1\u6587\u7A3F\u4EF6", "\u5B66\u672F\u5199\u4F5C")] },
+  reviewer: { title: "\u79D1\u7814\u5BA1\u67E5\u4E13\u5BB6", purpose: "\u68C0\u67E5\u4E3B\u5F20\u3001\u8BC1\u636E\u3001\u7EDF\u8BA1\u548C\u62A5\u544A\u89C4\u8303\u4E4B\u95F4\u7684\u4E00\u81F4\u6027\u3002", tools: [tool("\u8BC1\u636E\u94FE\u5BA1\u67E5", "\u8BC1\u636E\u6838\u67E5\u65B9\u6CD5"), tool("\u504F\u501A\u4E0E\u5C40\u9650\u6027\u6838\u67E5", "\u7814\u7A76\u8D28\u91CF\u8BC4\u4F30"), tool("\u6295\u7A3F\u524D\u6E05\u5355", "\u62A5\u544A\u89C4\u8303\u68C0\u67E5")] },
+  presentation: { title: "\u6C47\u62A5 PPT \u4E13\u5BB6", purpose: "\u5C06\u5DF2\u786E\u8BA4\u7ED3\u679C\u6574\u7406\u6210\u53EF\u8BB2\u8FF0\u7684\u5B66\u672F\u6C47\u62A5\u3002", tools: [tool("\u4F1A\u8BAE\u6C47\u62A5\u7ED3\u6784", "\u6C47\u62A5\u8BBE\u8BA1"), tool("\u7ED3\u679C\u56FE\u8868\u7F16\u6392", "\u79D1\u5B66\u4F20\u64AD"), tool("\u7B54\u8FA9\u53D9\u4E8B", "\u6C47\u62A5\u8BBE\u8BA1")] }
+};
+function installedFor(installed, role, catalogId) {
+  return (installed?.[role] || []).find((item) => item.catalogId === catalogId || item.name === catalogId);
+}
+function ExpertSetupPage({ view, refresh }) {
+  const [busy, setBusy] = (0, import_react6.useState)(null);
+  const [notice, setNotice] = (0, import_react6.useState)(null);
+  const skillMenu = view.experts.skillMenu || {};
+  const catalog = skillMenu.catalog || {};
+  const installed = skillMenu.installed || {};
+  const roles = Object.keys(ROLE_INFO);
+  const candidateCards = (0, import_react6.useMemo)(() => roles.flatMap((role) => (catalog[role] || []).map((entry) => ({ ...entry, role }))), [catalog]);
+  const catalogEntryKeys = new Set(candidateCards.map((entry) => `${entry.role}:${entry.id}`));
+  const customInstalled = roles.flatMap((role) => (installed[role] || []).map((entry) => ({ ...entry, role, id: entry.name }))).filter((entry) => !catalogEntryKeys.has(`${entry.role}:${entry.catalogId || entry.name}`));
+  const manageSkill = async (entry, action) => {
+    const key = `${entry.role}:${entry.id}`;
+    setBusy(key);
+    setNotice(null);
+    try {
+      const payloadBody = action === "remove" ? { action, role: entry.role, name: entry.id } : { action, role: entry.role, repoId: entry.id };
+      const response = await fetch("/plugins/dsh-science/skill-manage", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(payloadBody) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP ${response.status}`);
+      setNotice({ tone: "success", text: action === "install" ? `${entry.name} \u5DF2\u5B89\u88C5\u3002` : `${entry.name} \u5DF2\u79FB\u9664\u3002` });
+      await refresh();
+    } catch (error) {
+      setNotice({ tone: "error", text: `\u64CD\u4F5C\u5931\u8D25\uFF1A${error.message}` });
+    } finally {
+      setBusy(null);
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-stack", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Panel, { title: "\u4E13\u5BB6\u80FD\u529B", subtitle: "\u5185\u7F6E\u80FD\u529B\u53EF\u76F4\u63A5\u4F7F\u7528\uFF1B\u5DE5\u5177\u5019\u9009\u9700\u8981\u5148\u5728\u5F53\u524D\u73AF\u5883\u5B89\u88C5\u5E76\u9A8C\u8BC1\uFF0C\u4E0D\u4EE3\u8868\u5DF2\u96C6\u6210\u3002", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-expert-grid", children: roles.map((role) => {
+      const info = ROLE_INFO[role];
+      const member = view.experts.roles?.[role];
+      const installedCount = (installed[role] || []).length;
+      return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("article", { className: "sci-expert-card", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-result-top", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: member?.label || info.title }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: info.purpose })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Badge, { children: [
+            installedCount,
+            " \u9879\u6269\u5C55\u5DF2\u5B89\u88C5"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-tool-list", "aria-label": `${info.title}\u73AF\u5883\u5DE5\u5177\u5019\u9009`, children: info.tools.map((item) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-tool-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: item.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            "\u7C7B\u522B\uFF1A",
+            item.category
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            "\u73AF\u5883/\u4F9D\u8D56\uFF1A",
+            item.environment
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+            "\u72B6\u6001/\u7248\u672C\uFF1A",
+            item.status
+          ] })
+        ] }, item.name)) })
+      ] }, role);
+    }) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Panel, { title: "\u53EF\u9009\u6280\u80FD\u589E\u5F3A", subtitle: "\u6280\u80FD\u53EA\u63D0\u4F9B\u64CD\u4F5C\u8BF4\u660E\u3002\u8FD0\u884C\u4F9D\u8D56\u3001\u6A21\u578B\u6743\u91CD\u3001\u5916\u90E8 API \u548C\u6570\u636E\u8BB8\u53EF\u4ECD\u9700\u5355\u72EC\u6838\u5BF9\u3002", children: [
+      notice && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(StatusMessage, { tone: notice.tone === "error" ? "error" : "success", children: notice.text }),
+      candidateCards.length ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-expert-grid", children: candidateCards.map((entry) => {
+        const installedEntry = installedFor(installed, entry.role, entry.id);
+        const canInstall = entry.installable === true && Boolean(entry.gitRef);
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("article", { className: "sci-expert-card", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-result-top", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: entry.name }),
+              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: entry.description })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Badge, { tone: installedEntry ? "good" : canInstall ? "default" : "warn", children: installedEntry ? "\u5DF2\u5B89\u88C5" : canInstall ? "\u53EF\u5B89\u88C5\u6280\u80FD" : "\u73AF\u5883\u5DE5\u5177 / \u5F85\u6838\u9A8C" })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u89D2\u8272\uFF1A" }),
+            ROLE_INFO[entry.role]?.title || entry.role
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u8FD0\u884C\u73AF\u5883\u4E0E\u4F9D\u8D56\uFF1A" }),
+            entry.environment || "\u672A\u8BB0\u5F55\uFF0C\u9700\u6838\u5BF9\u4ED3\u5E93\u8BF4\u660E\u3002"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u6765\u6E90\u4ED3\u5E93\uFF1A" }),
+            entry.repo ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("a", { href: entry.repo, target: "_blank", rel: "noreferrer", children: entry.repo }) : "\u672A\u8BB0\u5F55"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u8BB8\u53EF\u8BC1\uFF1A" }),
+            entry.license || "\u672A\u6838\u9A8C"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "SKILL.md\uFF1A" }),
+            entry.hasSkillMd ? `\u5DF2\u6838\u9A8C \xB7 ${entry.subdir ? `${entry.subdir}/SKILL.md` : "SKILL.md"}` : "\u672A\u6838\u9A8C\u6216\u672A\u53D1\u73B0"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u5B89\u88C5\u72B6\u6001\uFF1A" }),
+            installedEntry ? `\u5DF2\u5B89\u88C5${installedEntry.dir ? ` \xB7 ${installedEntry.dir}` : ""}` : "\u5C1A\u672A\u5B89\u88C5"
+          ] }),
+          entry.gitRef && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u56FA\u5B9A\u7248\u672C\uFF1A" }),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { children: entry.gitRef })
+          ] }),
+          !entry.gitRef && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-risk", children: "\u5F53\u524D\u6CA1\u6709\u5DF2\u6838\u5B9E\u7684\u56FA\u5B9A\u63D0\u4EA4\uFF0C\u5B89\u88C5\u5165\u53E3\u6682\u4E0D\u53EF\u7528\u3002" }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-risk", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u4F7F\u7528\u98CE\u9669\uFF1A" }),
+            entry.risk || "\u98CE\u9669\u4FE1\u606F\u672A\u8BB0\u5F55\uFF1B\u5B89\u88C5\u524D\u9700\u81EA\u884C\u6838\u5BF9\u4F9D\u8D56\u3001\u6570\u636E\u5916\u4F20\u548C\u8BB8\u53EF\u8FB9\u754C\u3002"
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-result-actions", children: installedEntry ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Button, { small: true, onClick: () => manageSkill(entry, "remove"), disabled: busy === `${entry.role}:${entry.id}`, children: "\u79FB\u9664\u6269\u5C55" }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Button, { small: true, primary: true, onClick: () => manageSkill(entry, "install"), disabled: !canInstall || busy === `${entry.role}:${entry.id}`, children: busy === `${entry.role}:${entry.id}` ? "\u5904\u7406\u4E2D\u2026" : canInstall ? "\u5B89\u88C5\u5230\u8BE5\u4E13\u5BB6" : "\u6682\u4E0D\u53EF\u5B89\u88C5" }) })
+        ] }, `${entry.role}:${entry.id}`);
+      }) }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-small", children: "\u76EE\u524D\u6CA1\u6709\u56FA\u5B9A\u7248\u672C\u4E14\u53EF\u76F4\u63A5\u5B89\u88C5\u7684\u6280\u80FD\u6761\u76EE\u3002\u73AF\u5883\u5DE5\u5177\u5019\u9009\u4ECD\u53EF\u7531\u8BA1\u7B97\u4E13\u5BB6\u6309\u5B98\u65B9\u6587\u6863\u914D\u7F6E\u3002" })
+    ] }),
+    customInstalled.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Panel, { title: "\u5DF2\u5B89\u88C5\u7684\u81EA\u5B9A\u4E49\u6280\u80FD", subtitle: "\u81EA\u5B9A\u4E49\u4ED3\u5E93\u4E0D\u4F1A\u81EA\u52A8\u83B7\u5F97\u4F9D\u8D56\u6216\u98CE\u9669\u80CC\u4E66\uFF1B\u8BF7\u6309\u4ED3\u5E93\u6765\u6E90\u9010\u9879\u6838\u5BF9\u3002", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-expert-grid", children: customInstalled.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("article", { className: "sci-expert-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-result-top", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: entry.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: ROLE_INFO[entry.role]?.title || entry.role })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Badge, { tone: "good", children: "\u5DF2\u5B89\u88C5" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u8FD0\u884C\u73AF\u5883\u4E0E\u4F9D\u8D56\uFF1A" }),
+        entry.environment || "\u672A\u8BB0\u5F55"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u6765\u6E90\u4ED3\u5E93\uFF1A" }),
+        entry.repo ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("a", { href: entry.repo, target: "_blank", rel: "noreferrer", children: entry.repo }) : "\u672A\u8BB0\u5F55"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u8BB8\u53EF\u8BC1\uFF1A" }),
+        entry.license || "\u672A\u6838\u9A8C"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "SKILL.md\uFF1A" }),
+        entry.hasSkillMd ? `\u5DF2\u53D1\u73B0 \xB7 ${(entry.skillMdPaths || []).join("\uFF1B") || entry.dir}` : "\u672A\u53D1\u73B0\uFF1B\u76EE\u5F55\u53EA\u767B\u8BB0\u4E86\u8DEF\u5F84"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u5B89\u88C5\u4F4D\u7F6E\uFF1A" }),
+        entry.dir || "\u672A\u8BB0\u5F55"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-risk", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u4F7F\u7528\u98CE\u9669\uFF1A" }),
+        entry.risk || "\u5C1A\u672A\u6838\u9A8C\uFF1B\u4F7F\u7528\u524D\u9700\u68C0\u67E5\u4ED3\u5E93\u8BF4\u660E\u3001\u6267\u884C\u547D\u4EE4\u3001\u4F9D\u8D56\u8BB8\u53EF\u548C\u6570\u636E\u5916\u4F20\u8FB9\u754C\u3002"
+      ] }),
+      entry.warn && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-risk", children: "\u5B89\u88C5\u8BB0\u5F55\u6807\u8BB0\uFF1A\u672A\u53D1\u73B0\u6807\u51C6 SKILL.md\u3002" }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-result-actions", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Button, { small: true, onClick: () => manageSkill(entry, "remove"), disabled: busy === `${entry.role}:${entry.id}`, children: busy === `${entry.role}:${entry.id}` ? "\u5904\u7406\u4E2D\u2026" : "\u79FB\u9664\u6269\u5C55" }) })
+    ] }, `${entry.role}:${entry.id}`)) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Panel, { title: "\u72EC\u7ACB\u96C6\u6210\u4E0E\u6570\u636E\u8FB9\u754C", subtitle: "\u4EE5\u4E0B\u80FD\u529B\u9700\u8981\u5355\u72EC\u5B89\u88C5\u6216\u5916\u90E8\u670D\u52A1\uFF0C\u4E0D\u4F1A\u4F5C\u4E3A\u672C\u5730\u6280\u80FD\u4F2A\u88C5\u6210\u4E00\u952E\u529F\u80FD\u3002", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-expert-grid", children: (skillMenu.integrations || []).map((integration) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("article", { className: "sci-expert-card", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { children: integration.name }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { children: integration.description }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Badge, { tone: integration.tone || "default", children: integration.status }),
+      integration.environment && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u73AF\u5883/\u4F9D\u8D56\uFF1A" }),
+        integration.environment
+      ] }),
+      integration.license && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u8BB8\u53EF\uFF1A" }),
+        integration.license
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u6765\u6E90\uFF1A" }),
+        integration.repo || integration.sourceUrl ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("a", { href: integration.repo || integration.sourceUrl, target: "_blank", rel: "noreferrer", children: integration.repo || integration.sourceUrl }) : integration.sourcePath ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { children: integration.sourcePath }) : "\u672A\u8BB0\u5F55"
+      ] }),
+      integration.installCommand && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "sci-small", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("b", { children: "\u5B89\u88C5\u547D\u4EE4\uFF1A" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("code", { children: integration.installCommand })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "sci-result-actions", children: integration.actionUrl ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("a", { className: "sci-button sci-button-small", href: integration.actionUrl, target: "_blank", rel: "noreferrer", children: integration.actionLabel || "\u6253\u5F00\u6765\u6E90" }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { className: "sci-small", children: integration.actionLabel || "\u5F53\u524D\u672A\u914D\u7F6E\u53EF\u6267\u884C\u8FDE\u63A5" }) })
+    ] }, integration.id)) }) })
+  ] });
+}
+
+// client-src/workbench/use-workbench-state.js
+var import_react7 = require("react");
+
+// client-src/workbench/state-view.js
+var STAGES = Object.freeze([
+  { id: "explore", label: "\u7814\u7A76\u63A2\u7D22" },
+  { id: "frame", label: "\u6587\u7AE0\u7ED3\u6784" },
+  { id: "execute", label: "\u4EFB\u52A1\u7EC6\u5316" },
+  { id: "synthesize", label: "\u5206\u6790\u4E0E\u7ED8\u56FE" },
+  { id: "draft", label: "\u8BBA\u6587\u5199\u4F5C" },
+  { id: "audit", label: "\u6C47\u62A5\u4E0E\u6295\u7A3F" }
+]);
+var LIVE_STATUSES = /* @__PURE__ */ new Set(["claimed", "in_progress", "running", "working"]);
+var DONE_STATUSES = /* @__PURE__ */ new Set(["completed", "done"]);
+var HIDDEN_STATUSES = /* @__PURE__ */ new Set(["deleted", "cancelled"]);
+var IMAGE_EXTENSIONS = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "webp", "svg"]);
+var asArray = (value) => Array.isArray(value) ? value : [];
+var asText = (value) => typeof value === "string" ? value : "";
+var nonEmpty = (value) => asText(value).trim();
+function listOf(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") return Object.values(value);
+  return [];
+}
+function stageStateOf(stage, currentStage) {
+  const stageIndex = STAGES.findIndex((item) => item.id === stage.id);
+  const currentIndex = Math.max(0, STAGES.findIndex((item) => item.id === currentStage));
+  if (stageIndex < currentIndex) return "completed";
+  if (stageIndex === currentIndex) return "current";
+  return "upcoming";
+}
+function statusLabel(status) {
+  const labels = {
+    pending: "\u7B49\u5F85\u4E2D",
+    claimed: "\u5DF2\u9886\u53D6",
+    in_progress: "\u8FDB\u884C\u4E2D",
+    working: "\u5DE5\u4F5C\u4E2D",
+    running: "\u8FD0\u884C\u4E2D",
+    completed: "\u5DF2\u5B8C\u6210",
+    failed: "\u5931\u8D25",
+    blocked: "\u53D7\u963B",
+    cancelled: "\u5DF2\u53D6\u6D88"
+  };
+  return labels[status] || "\u72B6\u6001\u5F85\u66F4\u65B0";
+}
+function taskResultIds(task) {
+  const ids = [];
+  if (typeof task?.resultId === "string" && task.resultId) ids.push(task.resultId);
+  for (const id of asArray(task?.resultIds)) if (typeof id === "string" && id && !ids.includes(id)) ids.push(id);
   return ids;
 }
-function frameworkLayout(bp, tasksById, figById) {
-  const allResults = Array.isArray(bp.results) ? bp.results : [];
-  const results = allResults.slice(0, 8);
-  const hiddenResults = allResults.length - results.length;
-  const canvasW = Math.max(
-    FG_CORE_W + FG_PAD * 2,
-    (results.length + (hiddenResults > 0 ? 1 : 0)) * (FG_RES_W + FG_RES_GAP) - FG_RES_GAP + FG_PAD * 2
-  );
-  const core = { x: Math.round((canvasW - FG_CORE_W) / 2), y: FG_PAD, w: FG_CORE_W, h: FG_CORE_H };
-  const resY = core.y + FG_CORE_H + FG_CORE_GAP;
-  const resNodes = [];
-  const leafNodes = [];
-  const overflowNodes = [];
-  const edges = [];
-  let maxBottom = resY + FG_RES_H;
-  results.forEach((r, i) => {
-    const x = FG_PAD + i * (FG_RES_W + FG_RES_GAP);
-    const taskIds = resultTaskIdsOf(r, tasksById);
-    resNodes.push({ r, x, y: resY, taskCount: taskIds.size });
-    const leaves = [];
-    for (const claim of Array.isArray(r.claims) ? r.claims.filter((c) => c && c.status !== "retired") : []) {
-      leaves.push({ kind: "claim", id: claim.id, title: claim.text, claim });
-    }
-    for (const evidence of Array.isArray(r.evidence) ? r.evidence : []) {
-      leaves.push({ kind: "evidence", id: evidence.id, title: evidence.allowedInterpretation || evidence.sourceLocator || evidence.id, evidence });
-    }
-    for (const tid of taskIds) leaves.push({ kind: "task", id: tid });
-    for (const fid of Array.isArray(r.figures) ? r.figures : []) leaves.push({ kind: "figure", id: fid });
-    const shown = leaves.slice(0, FG_LEAF_CAP);
-    const overflow = leaves.length - shown.length;
-    let ly = resY + FG_RES_H + 16;
-    for (const leaf of shown) {
-      leaf.x = x + FG_LEAF_INDENT;
-      leaf.y = ly;
-      leaf.parentId = r.id;
-      if (leaf.kind === "task") {
-        const t = tasksById.get(leaf.id);
-        leaf.status = t ? t.status : null;
-        leaf.title = t && (t.subject || t.id) || leaf.id;
-        leaf.assignee = t ? t.assignee : "";
-      } else if (leaf.kind === "figure") {
-        const f = figById.get(leaf.id);
-        leaf.title = f && f.title || leaf.id;
-        leaf.fig = f || null;
-      }
-      leafNodes.push(leaf);
-      ly += FG_LEAF_H + FG_LEAF_GAP;
-    }
-    if (overflow > 0) {
-      overflowNodes.push({ parentId: r.id, x: x + FG_LEAF_INDENT, y: ly, count: overflow });
-      ly += FG_LEAF_H + FG_LEAF_GAP;
-    }
-    maxBottom = Math.max(maxBottom, ly);
-    const coreCx = core.x + core.w / 2;
-    const coreBy = core.y + core.h;
-    const tx = x + FG_RES_W / 2;
-    const ty = resY;
-    edges.push({
-      d: `M${coreCx} ${coreBy}C${coreCx} ${coreBy + FG_CORE_GAP / 2},${tx} ${ty - FG_CORE_GAP / 2},${tx} ${ty}`,
-      kind: "core-result",
-      to: r.id
-    });
-    const kids = leafNodes.filter((l) => l.parentId === r.id);
-    if (kids.length > 0) {
-      const trunkX = x + 10;
-      const topY = resY + FG_RES_H;
-      const lastY = kids[kids.length - 1].y + FG_LEAF_H / 2;
-      edges.push({ d: `M${trunkX} ${topY}L${trunkX} ${lastY}`, kind: "trunk", to: r.id });
-      for (const k of kids) {
-        edges.push({ d: `M${trunkX} ${k.y + FG_LEAF_H / 2}L${k.x} ${k.y + FG_LEAF_H / 2}`, kind: "stub", to: k.id });
-      }
-    }
-  });
+function readinessForResult(blueprint, result) {
+  const row = asArray(blueprint?.paperSpine?.results).find((item) => item && item.id === result.id);
+  if (row?.readiness && typeof row.readiness === "object") return row.readiness;
+  const evidence = asArray(result.evidence).filter((item) => item && item.state === "verified").length;
+  const claims = asArray(result.claims).length;
+  const manuscript = nonEmpty(result.manuscriptRole) && result.manuscriptRole !== "excluded";
   return {
-    canvasW,
-    canvasH: maxBottom + FG_PAD,
-    core,
-    resNodes,
-    leafNodes,
-    overflowNodes,
-    edges,
-    resultCount: results.length,
-    resultTotal: allResults.length,
-    hiddenResults,
-    // F7：results 超 8 的汇总节点（排在末位 result 之后）
-    resultOverflow: hiddenResults > 0 ? { x: FG_PAD + results.length * (FG_RES_W + FG_RES_GAP), y: resY } : null
+    scientific: { state: evidence > 0 ? "in_progress" : "blocked", blockers: evidence > 0 ? [] : ["\u5C1A\u65E0\u53EF\u6838\u9A8C\u8BC1\u636E"] },
+    manuscript: { state: manuscript && claims > 0 ? "in_progress" : "blocked", blockers: manuscript && claims > 0 ? [] : ["\u5C1A\u65E0\u5199\u4F5C\u6750\u6599"] },
+    submission: { state: "blocked", blockers: ["\u6295\u7A3F\u51C6\u5907\u4FE1\u606F\u5C1A\u672A\u6838\u5BF9"] }
   };
 }
-function FrameworkDetail({ sel, bp, tasksById, figById, workspaceRoot, onOpenTask, onOpenFigure }) {
-  if (!sel) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u70B9\u51FB\u56FE\u4E2D\u8282\u70B9\u67E5\u770B\u8BE6\u60C5\uFF08result \u4E3B\u5F20 / \u4EFB\u52A1\u63CF\u8FF0 / \u56FE\u8868\u9884\u89C8\uFF09\u3002" });
-  if (sel.kind === "core") {
-    const c = bp.core || {};
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": "core", style: { border: `1px solid ${C.divider}`, borderRadius: 8, padding: "6px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color: C.fg, fontWeight: 700 }, children: c.title || "\uFF08\u672A\u547D\u540D\uFF09" }),
-      c.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, color: C.fg }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.accent }, children: "\u4E3B\u5F20\uFF1A" }),
-        c.claim
-      ] }),
-      c.innovation && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u521B\u65B0\uFF1A" }),
-        c.innovation
-      ] }),
-      c.venue && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3 }, children: [
-        "\u76EE\u6807\u671F\u520A\uFF1A",
-        c.venue
-      ] })
-    ] });
-  }
-  if (sel.kind === "result") {
-    const r = (bp.results || []).find((x) => x && x.id === sel.id);
-    if (!r) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8BE5 result \u5DF2\u4E0D\u5B58\u5728\uFF08\u84DD\u56FE\u5DF2\u66F4\u65B0\uFF09\u3002" });
-    const status = r.status || "planned";
-    const tasks = [...resultTaskIdsOf(r, tasksById)];
-    const figures = Array.isArray(r.figures) ? r.figures : [];
-    const progress = bp.paperProgress && Array.isArray(bp.paperProgress.results) ? bp.paperProgress.results.find((x) => x.id === r.id) : null;
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": r.id, style: { border: `1px solid ${C.divider}`, borderRadius: 8, padding: "6px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.faint }, children: [
-          r.id,
-          " \xB7 ",
-          RESULT_STATUS_LABEL[status] || status
-        ] }),
-        r.confirmed === true ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.ok }, children: "\u{1F512} \u5DF2\u786E\u8BA4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.warn, border: `1px solid ${C.warn}`, borderRadius: 8, padding: "0 5px", lineHeight: "15px" }, children: "\u5F85\u786E\u8BA4" }),
-        Array.isArray(r.references) && r.references.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: r.references.some((x) => x && !x.verified) ? C.warn : C.ok }, children: [
-          "\u{1F4DA} ",
-          r.references.length,
-          " \u6761\u6587\u732E",
-          r.references.some((x) => x && !x.verified) ? "\uFF08\u542B\u672A\u6838\u5BF9\uFF09" : ""
-        ] }),
-        r.screening && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: SCREENING_COLOR[r.screening.decision] || C.faint }, children: SCREENING_LABEL[r.screening.decision] || r.screening.decision })
-      ] }),
-      r.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, color: C.fg }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.accent }, children: "\u4E3B\u5F20\uFF1A" }),
-        r.claim
-      ] }),
-      progress && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-result-progress": r.id, style: { marginTop: 5, padding: "5px 7px", border: `1px solid ${C.divider}`, borderRadius: 7, background: C.card }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", fontSize: 10 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-            "\u4EFB\u52A1 ",
-            progress.tasks.completed,
-            "/",
-            progress.tasks.total
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-            "\u6587\u732E ",
-            progress.references.verified,
-            "/",
-            progress.references.total
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-            "\u56FE\u4EF6\u7EC8\u5BA1 ",
-            progress.figures.approved,
-            "/",
-            progress.figures.total
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: progress.review.severity === "pass" ? C.ok : progress.review.severity === "fail" ? C.err : C.warn }, children: [
-            "\u5BA1\u67E5 ",
-            progress.review.severity
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, color: progress.tasks.blocked > 0 || progress.tasks.failed > 0 ? C.err : C.muted }, children: [
-          "\u4E0B\u4E00\u6B65\uFF1A",
-          progress.nextAction,
-          progress.owner ? ` \xB7 ${progress.owner}` : ""
-        ] })
-      ] }),
-      tasks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flexShrink: 0 }, children: "\u652F\u6491\u4EFB\u52A1\uFF1A" }),
-        tasks.map((tid) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "span",
-          {
-            onClick: (e) => {
-              e.stopPropagation();
-              try {
-                if (typeof onOpenTask === "function") onOpenTask(tid);
-              } catch {
-              }
-            },
-            title: "\u70B9\u51FB\u524D\u5F80\u56E2\u961F\u4EFB\u52A1\u6D41\u67E5\u770B",
-            style: { display: "inline-block", padding: "0 6px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, fontSize: 10, lineHeight: "16px", color: C.muted, cursor: "pointer", fontFamily: "ui-monospace, monospace" },
-            children: [
-              tid,
-              " \u2192"
-            ]
-          },
-          tid
-        ))
-      ] }),
-      figures.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flexShrink: 0 }, children: "\u56FE\u8868\u8BC1\u636E\uFF1A" }),
-        figures.map((fid) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "span",
-          {
-            onClick: (e) => {
-              e.stopPropagation();
-              try {
-                if (typeof onOpenFigure === "function") onOpenFigure(fid);
-              } catch {
-              }
-            },
-            title: "\u70B9\u51FB\u524D\u5F80\u4EA7\u7269 tab \u56FE\u5E93\u67E5\u770B",
-            style: { display: "inline-block", padding: "0 6px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, fontSize: 10, lineHeight: "16px", color: C.muted, cursor: "pointer", fontFamily: "ui-monospace, monospace" },
-            children: [
-              fid,
-              " \u2192"
-            ]
-          },
-          fid
-        ))
-      ] }),
-      r.notes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: status === "negative" ? C.err : C.ok }, children: "notes\uFF1A" }),
-        r.notes
-      ] }),
-      r.confirmed !== true && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.warn }, children: "\u786E\u8BA4\u8BE5 result\uFF1A" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `/sci_blueprint_confirm ${r.id}` })
-      ] })
-    ] });
-  }
-  if (sel.kind === "claim" || sel.kind === "evidence") {
-    const owner = (bp.results || []).find((r) => sel.kind === "claim" ? (r.claims || []).some((item2) => item2 && item2.id === sel.id) : (r.evidence || []).some((item2) => item2 && item2.id === sel.id));
-    const item = owner && (sel.kind === "claim" ? (owner.claims || []).find((row) => row.id === sel.id) : (owner.evidence || []).find((row) => row.id === sel.id));
-    if (!item) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-      sel.id,
-      " \u5DF2\u4E0D\u5B58\u5728\uFF08\u84DD\u56FE\u53EF\u80FD\u5DF2\u66F4\u65B0\uFF09\u3002"
-    ] });
-    if (sel.kind === "claim") {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": item.id, style: { border: `1px solid ${C.accent}`, borderRadius: 8, padding: "7px 10px", background: C.chip, fontSize: 11, color: C.fg, lineHeight: 1.6 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.accent, fontFamily: "ui-monospace, monospace", fontSize: 10 }, children: [
-          item.id,
-          "@r",
-          item.revision || 1,
-          " \xB7 ",
-          owner.id
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 3, fontWeight: 650 }, children: item.text }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, color: C.muted }, children: [
-          "\u5173\u8054\u8BC1\u636E ",
-          (owner.evidence || []).filter((ev) => (ev.claimIds || []).includes(item.id)).length,
-          " \u6761"
-        ] })
-      ] });
-    }
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": item.id, style: { border: `1px solid ${DIRECTION_COLOR[item.direction] || C.border}`, borderRadius: 8, padding: "7px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: DIRECTION_COLOR[item.direction] || C.fg, fontWeight: 700 }, children: [
-        item.id,
-        " \xB7 ",
-        DIRECTION_LABEL[item.direction] || item.direction,
-        " \xB7 ",
-        item.state
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u6765\u6E90\uFF1A" }),
-        item.sourceLocator || "\u672A\u8BB0\u5F55"
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u5141\u8BB8\u89E3\u91CA\uFF1A" }),
-        item.allowedInterpretation || "\u672A\u8BB0\u5F55"
-      ] }),
-      item.prohibitedInterpretation && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.warn }, children: "\u4E0D\u5F97\u5916\u63A8\uFF1A" }),
-        item.prohibitedInterpretation
-      ] }),
-      item.conditions && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u6761\u4EF6\uFF1A" }),
-        item.conditions
-      ] }),
-      item.uncertainty && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u4E0D\u786E\u5B9A\u6027\uFF1A" }),
-        item.uncertainty
-      ] })
-    ] });
-  }
-  if (sel.kind === "task") {
-    const t = tasksById.get(sel.id);
-    if (!t) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-      "\u4EFB\u52A1 ",
-      sel.id,
-      " \u4E0D\u5728\u4EFB\u52A1\u677F\u4E0A\uFF08\u53EF\u80FD\u5DF2\u88AB\u5220\u9664\uFF09\u3002"
-    ] });
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": t.id, style: { border: `1px solid ${C.divider}`, borderRadius: 8, padding: "6px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.faint }, children: [
-        t.id,
-        " \xB7 \u72B6\u6001 ",
-        t.status,
-        " \xB7 \u8D1F\u8D23\u4EBA ",
-        t.assignee || "\u5F85\u9886",
-        t.resultId ? ` \xB7 \u5BF9\u9F50 ${t.resultId}` : ""
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color: C.fg, marginTop: 3, fontWeight: 700 }, children: t.subject || t.id }),
-      t.desc && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, color: C.fg }, children: t.desc }),
-      t.result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.ok }, children: "\u7ED3\u679C\uFF1A" }),
-        t.result
-      ] })
-    ] });
-  }
-  const f = figById.get(sel.id);
-  if (!f) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-    "\u56FE\u8868 ",
-    sel.id,
-    " \u672A\u767B\u8BB0\uFF08\u6216\u5DF2\u6E05\u7406\uFF09\u3002"
-  ] });
-  const inside = pathInsideWorkspace(f.path, workspaceRoot);
-  const previewable = inside && figurePreviewable(f.path);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-detail": f.id, style: { border: `1px solid ${C.divider}`, borderRadius: 8, padding: "6px 10px", background: C.chip, fontSize: 11, color: C.muted, lineHeight: 1.6 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color: C.fg, fontWeight: 700 }, children: f.title }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditBadge, { figure: f })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 2 }, children: [
-      f.id,
-      " \xB7 ",
-      f.sha256_12,
-      " \xB7 ",
-      fmtBytes(f.bytes),
-      " \xB7 ",
-      fmtTime(f.registeredAt)
-    ] }),
-    previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "img",
-      {
-        src: `/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`,
-        alt: f.title,
-        style: { display: "block", maxWidth: "100%", maxHeight: 180, marginTop: 6, borderRadius: 6, border: `1px solid ${C.divider}` }
-      }
-    ),
-    inside && !previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "button",
-      {
-        type: "button",
-        onClick: () => {
-          try {
-            window.open(`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`, "_blank");
-          } catch {
-          }
-        },
-        style: { marginTop: 5, fontSize: 10, cursor: "pointer" },
-        children: [
-          "\u6253\u5F00 ",
-          String(f.path).split(".").pop().toUpperCase(),
-          " \u6295\u7A3F\u6587\u4EF6"
-        ]
-      }
-    ),
-    !inside && f.path && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: f.path, children: f.path }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditDetails, { figure: f })
-  ] });
-}
-function FrameworkGraph({ bp, tasksById, figById, workspaceRoot, onOpenTask, onOpenFigure, focusResultId }) {
-  const [sel, setSel] = (0, import_react.useState)(null);
-  const layout = (0, import_react.useMemo)(() => frameworkLayout(bp || {}, tasksById, figById), [bp, tasksById, figById]);
-  const viewportRef = (0, import_react.useRef)(null);
-  (0, import_react.useEffect)(() => {
-    const vp = viewportRef.current;
-    if (!vp) return;
-    const target = (layout.canvasW - vp.clientWidth) / 2;
-    if (target > 0) vp.scrollLeft = target;
-  }, [layout.canvasW]);
-  (0, import_react.useEffect)(() => {
-    if (!focusResultId) return;
-    setSel({ kind: "result", id: focusResultId });
-    const timer = setTimeout(() => {
-      try {
-        const el = document.querySelector(`[data-framework-node="${focusResultId}"]`);
-        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-      } catch {
-      }
-    }, 80);
-    return () => clearTimeout(timer);
-  }, [focusResultId]);
-  if (layout.resultCount === 0 && !(bp && bp.core && (bp.core.title || bp.core.claim))) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709\u6587\u7AE0\u6846\u67B6\u3002\u8BA9\u961F\u957F\u7528 sci_blueprint_set \u786E\u7ACB\u6838\u5FC3\u3001sci_result_add \u6DFB\u52A0 Results\uFF0C\u8FD9\u91CC\u4F1A\u957F\u51FA\u6846\u67B6\u56FE\u3002" });
-  }
-  const nodeBase = {
-    position: "absolute",
-    cursor: "pointer",
-    boxSizing: "border-box"
+function memberLiveLabel(status) {
+  const labels = {
+    claimed: "\u5DF2\u9886\u53D6",
+    working: "\u5DE5\u4F5C\u4E2D",
+    running: "\u6B63\u5728\u8FD0\u884C",
+    idle: "\u7A7A\u95F2",
+    offline: "\u79BB\u7EBF",
+    "claimed/working": "\u5DF2\u9886\u53D6 \xB7 \u5DE5\u4F5C\u72B6\u6001\u5F85\u786E\u8BA4"
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "div",
-      {
-        "data-framework-viewport": "",
-        ref: viewportRef,
-        style: { maxHeight: 420, overflow: "auto", border: `1px solid ${C.divider}`, borderRadius: 8, background: C.card, position: "relative" },
-        children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-canvas": "", style: { position: "relative", width: layout.canvasW, height: layout.canvasH }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "svg",
-            {
-              "data-framework-edges": "",
-              width: layout.canvasW,
-              height: layout.canvasH,
-              style: { position: "absolute", left: 0, top: 0, pointerEvents: "none" },
-              "aria-hidden": true,
-              children: layout.edges.map((e, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                "path",
-                {
-                  "data-framework-edge": `${e.kind}:${e.to}`,
-                  d: e.d,
-                  fill: "none",
-                  style: { stroke: e.kind === "core-result" ? C.accent : C.faint },
-                  strokeWidth: e.kind === "core-result" ? 1.5 : 1,
-                  opacity: e.kind === "core-result" ? 0.8 : 0.6
-                },
-                i
-              ))
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              "data-framework-node": "core",
-              onClick: () => setSel({ kind: "core" }),
-              title: "\u6838\u5FC3 \xB7 \u70B9\u51FB\u67E5\u770B\u5B8C\u6574\u4E3B\u5F20",
-              style: {
-                ...nodeBase,
-                left: layout.core.x,
-                top: layout.core.y,
-                width: layout.core.w,
-                height: layout.core.h,
-                border: `1.5px solid ${sel && sel.kind === "core" ? C.accent : C.border}`,
-                borderRadius: 10,
-                background: C.chip,
-                padding: "5px 8px"
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5 }, children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 18 }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.accent, border: `1px solid ${C.accent}`, borderRadius: 8, padding: "0 5px", lineHeight: "14px", flexShrink: 0 }, children: "\u6838\u5FC3" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 11, fontWeight: 700, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: bp.core && bp.core.title || "\uFF08\u672A\u547D\u540D\uFF09" })
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 10,
-                      color: C.muted,
-                      lineHeight: "13px",
-                      marginTop: 3,
-                      height: 26,
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      wordBreak: "break-all"
-                    },
-                    children: bp.core && bp.core.claim || "\uFF08\u8FD8\u6CA1\u6709\u6838\u5FC3\u4E3B\u5F20\uFF09"
-                  }
-                )
-              ]
-            }
-          ),
-          layout.resNodes.map(({ r, x, y, taskCount }) => {
-            const status = r.status || "planned";
-            const rc = RESULT_STATUS_COLOR[status] || C.faint;
-            const isSel = sel && sel.kind === "result" && sel.id === r.id;
-            const figCount = Array.isArray(r.figures) ? r.figures.length : 0;
-            const p = bp.paperProgress && Array.isArray(bp.paperProgress.results) ? bp.paperProgress.results.find((x2) => x2.id === r.id) : null;
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "div",
-              {
-                "data-framework-node": r.id,
-                "data-result-status": status,
-                "data-result-confirmed": r.confirmed === true ? "true" : "false",
-                onClick: () => setSel({ kind: "result", id: r.id }),
-                title: `${r.id} \xB7 ${RESULT_STATUS_LABEL[status] || status} \xB7 ${r.confirmed === true ? "\u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4\uFF08dispatch \u524D\u9700\u786E\u8BA4\uFF09"} \xB7 \u70B9\u51FB\u67E5\u770B claim/notes`,
-                style: {
-                  ...nodeBase,
-                  left: x,
-                  top: y,
-                  width: FG_RES_W,
-                  height: FG_RES_H,
-                  border: `1.5px solid ${isSel ? C.accent : rc}`,
-                  borderRadius: 10,
-                  background: C.surface,
-                  padding: "4px 7px"
-                },
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: rc, size: 6 }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, fontFamily: "ui-monospace, monospace", color: rc, flexShrink: 0 }, children: r.id }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 8, flexShrink: 0 }, title: r.confirmed === true ? "\u5DF2\u786E\u8BA4" : "\u5F85\u786E\u8BA4", children: r.confirmed === true ? "\u{1F512}" : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.warn }, children: "\u5F85\u786E\u8BA4" }) }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 9, color: C.muted, marginLeft: "auto", flexShrink: 0 }, children: [
-                      taskCount,
-                      " \u4EFB\u52A1 \xB7 ",
-                      figCount,
-                      " \u56FE"
-                    ] })
-                  ] }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: C.fg,
-                        lineHeight: "12px",
-                        marginTop: 2,
-                        height: 24,
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        wordBreak: "break-all"
-                      },
-                      children: r.title || r.id
-                    }
-                  ),
-                  p && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-framework-progress": r.id, style: { marginTop: 4 }, children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, fontSize: 8, color: C.muted }, children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: p.tasks.total > 0 && p.tasks.completed === p.tasks.total ? C.ok : C.muted }, children: [
-                        "\u4EFB\u52A1 ",
-                        p.tasks.completed,
-                        "/",
-                        p.tasks.total
-                      ] }),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: p.references.total > 0 && p.references.verified === p.references.total ? C.ok : C.muted }, children: [
-                        "\u6587\u732E ",
-                        p.references.verified,
-                        "/",
-                        p.references.total
-                      ] }),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: p.figures.total > 0 && p.figures.approved === p.figures.total ? C.ok : C.muted }, children: [
-                        "\u56FE ",
-                        p.figures.approved,
-                        "/",
-                        p.figures.total
-                      ] })
-                    ] }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: 4, borderRadius: 3, background: C.chip, overflow: "hidden", marginTop: 4 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", height: "100%", width: `${p.tasks.total > 0 ? Math.round(100 * p.tasks.completed / p.tasks.total) : 0}%`, background: p.tasks.blocked > 0 || p.tasks.failed > 0 ? C.err : C.accent } }) })
-                  ] })
-                ]
-              },
-              r.id
-            );
-          }),
-          layout.leafNodes.map((leaf) => {
-            const isSel = sel && sel.kind === leaf.kind && sel.id === leaf.id;
-            if (leaf.kind === "task") {
-              const color = STATUS_COLOR[leaf.status] || C.faint;
-              return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "div",
-                {
-                  "data-framework-node": leaf.id,
-                  "data-leaf-kind": "task",
-                  "data-status": leaf.status || "unknown",
-                  onClick: () => setSel({ kind: "task", id: leaf.id }),
-                  title: `\u4EFB\u52A1 ${leaf.id} \xB7 ${leaf.title} \xB7 \u72B6\u6001 ${leaf.status || "\u672A\u77E5"} \xB7 \u70B9\u51FB\u67E5\u770B\u63CF\u8FF0`,
-                  style: {
-                    ...nodeBase,
-                    left: leaf.x,
-                    top: leaf.y,
-                    width: FG_LEAF_W,
-                    height: FG_LEAF_H,
-                    // F2：任务叶节点 surface + border-l4（深色主题可辨）
-                    border: `1px solid ${isSel ? C.accent : C.borderNode}`,
-                    borderRadius: 7,
-                    background: C.surface,
-                    padding: "2px 6px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    overflow: "hidden"
-                  },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color, size: 6 }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: leaf.title })
-                  ]
-                },
-                `task:${leaf.id}`
-              );
-            }
-            if (leaf.kind === "claim" || leaf.kind === "evidence") {
-              const isClaim = leaf.kind === "claim";
-              const direction = !isClaim && leaf.evidence ? leaf.evidence.direction : "not_assessed";
-              const color = isClaim ? C.accent : DIRECTION_COLOR[direction] || C.faint;
-              return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-                "div",
-                {
-                  "data-framework-node": leaf.id,
-                  "data-leaf-kind": leaf.kind,
-                  onClick: () => setSel({ kind: leaf.kind, id: leaf.id }),
-                  title: `${isClaim ? "Claim" : "\u8BC1\u636E"} ${leaf.id} \xB7 ${leaf.title} \xB7 \u70B9\u51FB\u67E5\u770B`,
-                  style: {
-                    ...nodeBase,
-                    left: leaf.x,
-                    top: leaf.y,
-                    width: FG_LEAF_W,
-                    height: FG_LEAF_H,
-                    border: `1px solid ${isSel ? C.accent : color}`,
-                    borderRadius: 7,
-                    background: C.chip,
-                    padding: "2px 6px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    overflow: "hidden"
-                  },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color, flexShrink: 0 }, children: isClaim ? "C" : leaf.evidence && leaf.evidence.state === "verified" ? "E\u2713" : "E" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: leaf.title })
-                  ]
-                },
-                `${leaf.kind}:${leaf.id}`
-              );
-            }
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "div",
-              {
-                "data-framework-node": leaf.id,
-                "data-leaf-kind": "figure",
-                onClick: () => setSel({ kind: "figure", id: leaf.id }),
-                title: `\u56FE\u8868 ${leaf.id} \xB7 ${leaf.title} \xB7 \u70B9\u51FB\u9884\u89C8`,
-                style: {
-                  ...nodeBase,
-                  left: leaf.x,
-                  top: leaf.y,
-                  width: FG_LEAF_W,
-                  height: FG_LEAF_H,
-                  border: `1px solid ${isSel ? C.accent : C.borderNode}`,
-                  borderRadius: 7,
-                  background: C.chip,
-                  padding: "2px 6px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  overflow: "hidden"
-                },
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, flexShrink: 0 }, children: "\u{1F5BC}" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: leaf.title })
-                ]
-              },
-              `fig:${leaf.id}`
-            );
-          }),
-          layout.overflowNodes.map((o) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              "data-framework-overflow": o.parentId,
-              onClick: () => setSel({ kind: "result", id: o.parentId }),
-              title: `${o.parentId} \u8FD8\u6709 ${o.count} \u4E2A\u53F6\u5B50\uFF0C\u70B9\u51FB\u5C55\u5F00\u8BE5 result \u8BE6\u60C5`,
-              style: {
-                ...nodeBase,
-                left: o.x,
-                top: o.y,
-                width: FG_LEAF_W,
-                height: FG_LEAF_H,
-                border: `1px dashed ${C.border}`,
-                borderRadius: 7,
-                padding: "2px 6px",
-                display: "flex",
-                alignItems: "center",
-                fontSize: 10,
-                color: C.faint
-              },
-              children: [
-                "+",
-                o.count,
-                " \u66F4\u591A\u53F6\uFF08\u70B9\u51FB\u5C55\u5F00\uFF09"
-              ]
-            },
-            `ovf:${o.parentId}`
-          )),
-          layout.resultOverflow && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              "data-framework-results-overflow": "",
-              title: `\u8FD8\u6709 ${layout.hiddenResults} \u4E2A result \u672A\u5728\u56FE\u4E2D\u5C55\u5F00\uFF08\u4E0A\u9650 8\uFF09\uFF1A${(bp.results || []).slice(8).map((r) => r && r.id).filter(Boolean).join("\u3001") || "\u2014"}\u3002\u5207\u6362\u300C\u5217\u8868\u89C6\u56FE\u300D\u53EF\u770B\u5168\u90E8`,
-              style: {
-                ...nodeBase,
-                left: layout.resultOverflow.x,
-                top: layout.resultOverflow.y,
-                width: FG_RES_W,
-                height: FG_RES_H,
-                border: `1px dashed ${C.borderNode}`,
-                borderRadius: 10,
-                padding: "4px 7px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                fontSize: 10,
-                color: C.muted
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { style: { fontSize: 11, color: C.fg }, children: [
-                  "+",
-                  layout.hiddenResults,
-                  " \u66F4\u591A result"
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\u8D85\u51FA\u753B\u5E03\u4E0A\u9650 8\uFF0C\u5217\u8868\u89C6\u56FE\u53EF\u770B\u5168\u90E8" })
-              ]
-            }
-          )
-        ] })
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 6 }, "data-framework-detail-host": "", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      FrameworkDetail,
-      {
-        sel,
-        bp: bp || {},
-        tasksById,
-        figById,
-        workspaceRoot,
-        onOpenTask,
-        onOpenFigure
-      }
-    ) })
-  ] });
+  return labels[status] || "\u72B6\u6001\u5F85\u66F4\u65B0";
 }
-function CoverageSection({ coverage, resultsCount }) {
-  const cov = coverage || {};
-  const warnings = Array.isArray(cov.warnings) ? cov.warnings : [];
-  const negative = typeof cov.negativeCount === "number" ? cov.negativeCount : 0;
-  const supported = typeof cov.supportedCount === "number" ? cov.supportedCount : 0;
-  const dropped = typeof cov.droppedCount === "number" ? cov.droppedCount : 0;
-  const total = typeof cov.total === "number" ? cov.total : typeof resultsCount === "number" ? resultsCount : 0;
-  if (warnings.length === 0) {
-    if (total === 0) {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5C1A\u65E0 result\u2014\u2014\u5148 sci_result_add \u6DFB\u52A0 Results\uFF0C\u8986\u76D6\u68C0\u67E5\u624D\u6709\u5BF9\u8C61\u3002" });
+function memberLiveTone(status) {
+  if (status === "running" || status === "working") return "good";
+  if (status === "claimed" || status === "claimed/working") return "warn";
+  if (status === "offline") return "bad";
+  return "default";
+}
+function taskBlockers(task, taskById) {
+  const blockers = [];
+  if (task.status === "blocked") blockers.push(nonEmpty(task.blockedReason) || "\u4EFB\u52A1\u5DF2\u6807\u8BB0\u4E3A\u53D7\u963B");
+  for (const id of asArray(task.blockedBy)) {
+    const dependency = taskById.get(id);
+    if (!dependency || !DONE_STATUSES.has(dependency.status)) {
+      blockers.push(dependency ? `\u7B49\u5F85\u201C${dependency.subject || dependency.id}\u201D\u5B8C\u6210` : `\u4F9D\u8D56\u4EFB\u52A1 ${id} \u4E0D\u5728\u5F53\u524D\u4EFB\u52A1\u677F`);
     }
-    if (supported === 0) {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-        "\u5C1A\u65E0 status=supported \u7684 Result\uFF08negative ",
-        negative,
-        " \xB7 dropped ",
-        dropped,
-        "\uFF09\u3002\u9634\u6027\u7ED3\u679C\u4ECD\u4FDD\u7559\u5728\u8BC1\u636E\u94FE\u4E2D\uFF0C\u53EA\u6709\u660E\u786E excluded/dropped \u624D\u9000\u51FA\u6587\u7AE0\u3002"
-      ] });
-    }
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Empty, { children: [
-      "\u8986\u76D6\u5B8C\u6574\uFF1A\u7EB3\u5165\u6587\u7AE0\u7684 Result \u5DF2\u6709\u6267\u884C\u5DE5\u4F5C\u548C\u5448\u73B0\u51B3\u7B56\uFF0C\u4EFB\u52A1\u5747\u5DF2\u5BF9\u9F50\uFF08supported ",
-      supported,
-      " \xB7 negative ",
-      negative,
-      "\uFF09\u3002"
-    ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { border: `1px solid ${cov.falsificationRisk ? C.err : C.border}`, borderRadius: 8, padding: "6px 10px", background: C.card }, children: [
-    warnings.map((w, i) => {
-      const isRisk = String(w).indexOf("\u26A0") === 0;
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "div",
-        {
-          style: {
-            fontSize: 11,
-            lineHeight: 1.6,
-            marginTop: i === 0 ? 0 : 3,
-            color: isRisk ? C.err : C.warn,
-            fontWeight: isRisk ? 700 : 400
-          },
-          children: w
-        },
-        i
-      );
-    }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint, marginTop: 4 }, children: [
-      "supported ",
-      supported,
-      " \xB7 negative ",
-      negative,
-      " \xB7 \u8BE6\u60C5\u547D\u4EE4\uFF1A",
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_overview" })
-    ] })
-  ] });
+  return [...new Set(blockers)];
 }
-function ReviewCoverageSection({ rc }) {
-  const counts = rc && rc.counts || {};
-  const total = typeof counts.total === "number" ? counts.total : 0;
-  const reviewed = typeof counts.reviewed === "number" ? counts.reviewed : 0;
-  const warnings = Array.isArray(rc && rc.warnings) ? rc.warnings : [];
-  const rows = [rc && rc.core, ...rc && Array.isArray(rc.results) ? rc.results : []].filter((v) => v && v.claim);
-  if (total === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5C1A\u65E0\u5E26 claim \u7684\u4E3B\u5F20\u2014\u2014\u5148 sci_blueprint_set / sci_result_add \u5EFA\u7ACB\u53EF\u6838\u5BF9\u7684\u4E3B\u5F20\u3002" });
+function nextStepOf(paper, team) {
+  if (!paper.core.claim && paper.results.length === 0) return { label: "\u5F00\u59CB\u63A2\u7D22\u7814\u7A76\u95EE\u9898", action: "explore" };
+  if (paper.core.claim && !paper.core.confirmed) return { label: "\u786E\u8BA4\u6838\u5FC3\u7814\u7A76\u7ED3\u8BBA", action: "confirm", targetId: "core" };
+  const unconfirmed = paper.results.find((result) => !result.confirmed);
+  if (unconfirmed) return { label: "\u68C0\u67E5\u5E76\u786E\u8BA4\u6587\u7AE0\u7ED3\u6784", action: "confirm", targetId: unconfirmed.id };
+  const withoutTasks = paper.results.find((result) => result.confirmed && result.taskCount === 0 && !["dropped"].includes(result.status));
+  if (withoutTasks) return { label: "\u7EC6\u5316\u6267\u884C\u4EFB\u52A1", action: "refine_tasks", targetId: withoutTasks.id };
+  if (team.counts.running > 0 || team.counts.waiting > 0 || team.counts.blocked > 0) return { label: "\u67E5\u770B\u56E2\u961F\u6267\u884C\u8FDB\u5C55", page: "team" };
+  if (paper.results.length > 0) return { label: "\u6839\u636E\u5DF2\u786E\u8BA4\u7ED3\u679C\u7EE7\u7EED\u5199\u4F5C", action: "write" };
+  return { label: "\u751F\u6210\u6587\u7AE0\u7ED3\u6784\u8349\u6848", action: "generate_structure" };
+}
+function fileCategory(path) {
+  const text = asText(path).toLowerCase();
+  const ext = text.split(".").pop() || "";
+  if (IMAGE_EXTENSIONS.has(ext) || ["pdf", "tif", "tiff", "eps"].includes(ext) || /figure|plot|chart|图/.test(text)) return "figures";
+  if (["doc", "docx", "md", "tex", "rtf"].includes(ext) || /manuscript|paper|draft|论文/.test(text)) return "manuscript";
+  if (["ppt", "pptx", "key"].includes(ext) || /slide|presentation|汇报|答辩/.test(text)) return "presentation";
+  if (["csv", "tsv", "parquet", "rds", "rdata", "ipynb", "py", "r", "m", "jl", "json"].includes(ext) || /data|code|analysis|result|数据|代码/.test(text)) return "data-code";
+  return "other";
+}
+function fileUrl(path) {
+  return `/plugins/dsh-science/file?path=${encodeURIComponent(path)}`;
+}
+function stateViewOf(snapshot) {
+  if (!snapshot || typeof snapshot !== "object" || snapshot.error) {
+    return { available: false, error: asText(snapshot?.error) || "\u5F53\u524D\u65E0\u6CD5\u8BFB\u53D6\u79D1\u7814\u5DE5\u4F5C\u53F0\u72B6\u6001\u3002" };
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { border: `1px solid ${counts.fail > 0 ? C.err : C.border}`, borderRadius: 8, padding: "6px 10px", background: C.card }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.fg, marginBottom: 4 }, children: [
-      "\u5DF2\u5BA1 ",
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { children: [
-        reviewed,
-        "/",
-        total
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.faint }, children: [
-        "\uFF08pass ",
-        counts.pass || 0,
-        " \xB7 warn ",
-        counts.warn || 0,
-        " \xB7 fail ",
-        counts.fail || 0,
-        "\uFF09"
-      ] })
-    ] }),
-    rows.map((v) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-review-cov-row": v.id, style: { fontSize: 11, lineHeight: 1.6, color: v.severity === "fail" ? C.err : v.severity === "warn" ? C.warn : v.severity === "pass" ? C.ok : C.faint }, children: [
-      v.id,
-      "\uFF1A",
-      v.severity || "\u672A\u5BA1",
-      v.runId ? `\uFF08${v.runId}\uFF09` : "",
-      v.message ? ` \u2014 ${v.message}` : ""
-    ] }, v.id)),
-    warnings.map((w, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.warn, marginTop: 4 }, children: [
-      "\u26A0 ",
-      w
-    ] }, `w${i}`)),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint, marginTop: 4 }, children: [
-      "\u4E3B\u5F20\u7EA7\u5BA1\u67E5\u6765\u6E90\uFF1Asci_review_send scope=evidence \u6216 /sci-review \xB7 \u8BE6\u60C5\u547D\u4EE4\uFF1A",
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_overview" })
-    ] })
-  ] });
-}
-function ReadinessPill({ row, label }) {
-  const state = row && row.state || "blocked";
-  const color = state === "ready" ? C.ok : state === "excluded" ? C.faint : C.warn;
-  const blockers = row && Array.isArray(row.blockers) ? row.blockers : [];
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    "span",
-    {
-      "data-readiness": state,
-      title: blockers.length ? blockers.join("\uFF1B") : `${label}\u5DF2\u5C31\u7EEA`,
-      style: { display: "inline-flex", alignItems: "center", gap: 3, border: `1px solid ${color}`, color, borderRadius: 9, padding: "1px 7px", fontSize: 10, lineHeight: "16px" },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: state === "ready" ? "\u2713" : state === "excluded" ? "\u2014" : "!" }),
-        label,
-        "\xB7",
-        READINESS_LABEL[state] || state
-      ]
-    }
-  );
-}
-function PaperStageRail({ stage }) {
-  const current = Math.max(0, PAPER_STAGE_ORDER.indexOf(stage));
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-paper-stage": stage || "explore", style: { display: "grid", gridTemplateColumns: "repeat(6, minmax(54px, 1fr))", gap: 3, marginTop: 8 }, children: PAPER_STAGE_ORDER.map((id, index) => {
-    const active = index === current;
-    const done = index < current;
-    const color = active ? C.accent : done ? C.ok : C.faint;
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { minWidth: 0, textAlign: "center" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: 4, borderRadius: 4, background: color, opacity: active ? 1 : done ? 0.8 : 0.35 } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { color, fontSize: 9, marginTop: 3, fontWeight: active ? 700 : 400, whiteSpace: "nowrap" }, children: PAPER_STAGE_LABEL[id] })
-    ] }, id);
-  }) });
-}
-function CockpitMetric({ label, value, total, color, hint }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { title: hint || "", style: { border: `1px solid ${C.border}`, borderRadius: 8, background: C.surface, padding: "7px 8px", minWidth: 0 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, children: label }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 18, lineHeight: 1.25, color: color || C.fg, fontWeight: 750, marginTop: 2 }, children: [
-      value,
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.faint, fontWeight: 400 }, children: [
-        "/",
-        total
-      ] })
-    ] })
-  ] });
-}
-function EvidenceResultCard({ row, source, selected, onSelect }) {
-  const directionColor = DIRECTION_COLOR[row.direction] || C.faint;
-  const counts = row.counts || {};
-  const claims = Array.isArray(row.claims) ? row.claims : [];
-  const evidence = Array.isArray(row.evidence) ? row.evidence : [];
-  const verified = evidence.filter((item) => item && item.state === "verified");
-  const readiness = row.readiness || {};
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    "details",
-    {
-      "data-evidence-result": row.id,
-      open: selected || void 0,
-      style: { border: `1px solid ${selected ? C.accent : C.border}`, borderLeft: `4px solid ${directionColor}`, borderRadius: 9, background: C.card, marginTop: 6, overflow: "hidden" },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-          "summary",
-          {
-            onClick: () => onSelect && onSelect(row.id),
-            style: { cursor: "pointer", listStyle: "none", padding: "8px 9px" },
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5, minWidth: 0 }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontFamily: "ui-monospace, monospace", color: C.accent, fontSize: 10, flexShrink: 0 }, children: row.id }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: row.title || row.claim || row.id }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { marginLeft: "auto", color: directionColor, fontSize: 10, flexShrink: 0 }, children: DIRECTION_LABEL[row.direction] || row.direction })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReadinessPill, { row: readiness.scientific, label: "\u79D1\u5B66" }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReadinessPill, { row: readiness.manuscript, label: "\u6587\u7A3F" }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReadinessPill, { row: readiness.submission, label: "\u6295\u7A3F" })
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, fontSize: 10, color: C.muted, display: "flex", gap: 8, flexWrap: "wrap" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: MANUSCRIPT_ROLE_LABEL[row.manuscriptRole] || row.manuscriptRole }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-                  "\u5448\u73B0\uFF1A",
-                  PRESENTATION_LABEL[row.presentation && row.presentation.mode] || "\u5F85\u5B9A"
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-                  "Claim ",
-                  counts.claims || 0
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-                  "\u8BC1\u636E ",
-                  counts.verifiedEvidence || 0,
-                  "/",
-                  counts.evidence || 0
-                ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-                  "\u4EFB\u52A1 ",
-                  counts.completedTasks || 0,
-                  "/",
-                  counts.tasks || 0
-                ] })
-              ] })
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { borderTop: `1px solid ${C.divider}`, padding: "7px 9px 9px" }, children: [
-          row.purpose && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.muted, lineHeight: 1.55 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u79D1\u5B66\u76EE\u7684\uFF1A" }),
-            row.purpose
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 5, fontSize: 10, color: C.fg, fontWeight: 650 }, children: "\u4E3B\u5F20\u4E0E\u8BC1\u636E" }),
-          claims.map((claim) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, fontSize: 11, lineHeight: 1.5, color: C.fg }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.accent, fontFamily: "ui-monospace, monospace", fontSize: 9 }, children: [
-              claim.id,
-              "@r",
-              claim.revision || 1
-            ] }),
-            " \xB7 ",
-            claim.text
-          ] }, claim.id)),
-          verified.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.warn, marginTop: 4 }, children: "\u5C1A\u65E0\u5DF2\u6838\u9A8C\u8BC1\u636E\u5305\u3002\u6765\u6E90\u5B9A\u4F4D\u4E0E\u89E3\u91CA\u8FB9\u754C\u7F3A\u5931\u65F6\uFF0C\u4E0D\u80FD\u628A\u4EFB\u52A1\u5B8C\u6210\u7B49\u540C\u4E8E\u79D1\u5B66\u7ED3\u8BBA\u6210\u7ACB\u3002" }) : verified.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { borderLeft: `2px solid ${DIRECTION_COLOR[item.direction] || C.ok}`, marginTop: 5, paddingLeft: 7, fontSize: 10, color: C.muted, lineHeight: 1.5 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.ok }, children: [
-                "\u2713 ",
-                item.id
-              ] }),
-              " \xB7 ",
-              item.sourceLocator
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg }, children: "\u5141\u8BB8\u89E3\u91CA\uFF1A" }),
-              item.allowedInterpretation
-            ] }),
-            item.prohibitedInterpretation && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.warn }, children: "\u4E0D\u5F97\u5916\u63A8\uFF1A" }),
-              item.prohibitedInterpretation
-            ] })
-          ] }, item.id)),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 7, padding: "5px 7px", borderRadius: 6, background: C.surface, color: row.nextAction && row.nextAction.includes("\u5168\u90E8") ? C.ok : C.warn, fontSize: 10, lineHeight: 1.45 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "\u4E0B\u4E00\u6B65\uFF1A" }),
-            row.nextAction || "\u6838\u5BF9\u8BC1\u636E\u94FE"
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }, children: [
-            !(source && source.confirmed) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `/sci_blueprint_confirm ${row.id}` }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_claim_add result_id=${row.id}` }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_evidence_add result_id=${row.id}` }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_result_update result_id=${row.id} presentation_mode=<figure|table|prose|supplement>` })
-          ] })
-        ] })
-      ]
-    }
-  );
-}
-function PaperCockpit({ bp, selectedId, onSelect }) {
-  const spine = bp.paperSpine || null;
-  if (!spine) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8BBA\u6587\u8BC1\u636E\u4E3B\u5E72\u5C1A\u672A\u751F\u6210\u3002\u5237\u65B0\u540E\u4ECD\u65E0\u6570\u636E\u65F6\uFF0C\u7528 sci_blueprint_overview \u68C0\u67E5\u84DD\u56FE\u8FC1\u79FB\u72B6\u6001\u3002" });
-  const counts = spine.counts || { total: 0, included: 0, scientificReady: 0, manuscriptReady: 0, submissionReady: 0 };
-  const rows = Array.isArray(spine.results) ? spine.results : [];
-  const byId = new Map((bp.results || []).map((row) => [row.id, row]));
-  const submission = spine.submission || {};
-  const submissionLabels = { dataCode: "\u6570\u636E\u4E0E\u4EE3\u7801", ethics: "\u4F26\u7406", reporting: "\u62A5\u544A\u89C4\u8303", limitations: "\u5C40\u9650\u6027" };
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-paper-cockpit": "true", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 11px", background: `linear-gradient(135deg, ${C.card}, transparent)`, marginBottom: 8 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "flex-start", gap: 8 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MascotAvatar, { file: LEAD_MASCOT, emoji: "\u{1F9D1}\u200D\u{1F52C}", size: 32 }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { minWidth: 0, flex: 1 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 9, color: C.accent, letterSpacing: 0.6 }, children: "DSH \u8BBA\u6587\u8BC1\u636E\u4E3B\u5E72 v2" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 14, fontWeight: 750, color: C.fg, marginTop: 2, lineHeight: 1.3 }, children: spine.core.title || "\u5C1A\u672A\u547D\u540D\u7684\u7814\u7A76\u6587\u7AE0" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 11, color: C.muted, marginTop: 3, lineHeight: 1.5 }, children: spine.core.claim || "\u5148\u5EFA\u7ACB\u6838\u5FC3\u4E3B\u5F20\uFF0C\u518D\u5C06\u5019\u9009\u8BC1\u636E\u63D0\u5347\u4E3A\u6587\u7AE0 Result\u3002" })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: spine.core.confirmed ? C.ok : C.warn, border: `1px solid ${spine.core.confirmed ? C.ok : C.warn}`, borderRadius: 8, padding: "1px 6px", fontSize: 9, flexShrink: 0 }, children: spine.core.confirmed ? `\u{1F512} r${spine.core.revision || 1}` : "\u5F85\u786E\u8BA4" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperStageRail, { stage: spine.stage })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 5 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CockpitMetric, { label: "\u79D1\u5B66\u5C31\u7EEA", value: counts.scientificReady || 0, total: counts.included || 0, color: C.accent, hint: "\u8BC1\u636E\u53EF\u8FFD\u6EAF\u3001\u4EFB\u52A1\u7ED3\u675F\u4E14\u4E3B\u5F20\u5BA1\u67E5\u901A\u8FC7" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CockpitMetric, { label: "\u6587\u7A3F\u5C31\u7EEA", value: counts.manuscriptReady || 0, total: counts.included || 0, color: C.warn, hint: "\u5448\u73B0\u65B9\u5F0F\u5DF2\u51B3\u5B9A\uFF0C\u6240\u9700\u56FE\u4EF6\u4E0E\u5F15\u7528\u5DF2\u6838\u9A8C" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CockpitMetric, { label: "\u6295\u7A3F\u5C31\u7EEA", value: counts.submissionReady || 0, total: counts.included || 0, color: C.ok, hint: "\u6587\u7A3F\u53CA\u6295\u7A3F\u68C0\u67E5\u5168\u90E8\u5B8C\u6210" })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 7, border: `1px solid ${C.accent}`, borderRadius: 8, padding: "7px 9px", background: C.surface, fontSize: 11, color: C.fg, lineHeight: 1.5 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.accent, fontWeight: 700 }, children: "\u5F53\u524D\u5173\u952E\u51B3\u7B56" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
-      spine.nextDecision
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 9, display: "flex", alignItems: "baseline", justifyContent: "space-between" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 11, color: C.fg }, children: "Result \u8BC1\u636E\u94FE" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 9, color: C.faint }, children: "\u652F\u6301\u3001\u53CD\u9A73\u548C\u4E0D\u786E\u5B9A\u8BC1\u636E\u90FD\u4FDD\u7559" })
-    ] }),
-    rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5C1A\u65E0 Result\u3002\u63A2\u7D22\u6240\u5F97\u5148\u8FDB\u5165\u5019\u9009\uFF0C\u518D\u7528 sci_result_add \u5EFA\u7ACB\u6587\u7AE0\u53D9\u4E8B\u5355\u5143\u3002" }) : rows.map((row) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EvidenceResultCard, { row, source: byId.get(row.id), selected: selectedId === row.id, onSelect }, row.id)),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 10, fontSize: 10, color: C.fg, fontWeight: 650 }, children: "\u6295\u7A3F\u68C0\u67E5" }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 4, marginTop: 4 }, children: Object.entries(submissionLabels).map(([id, label]) => {
-      const row = submission[id] || { status: "pending" };
-      const done = row.status === "complete" || row.status === "not_applicable";
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { title: row.note || "", style: { border: `1px solid ${done ? C.ok : C.border}`, borderRadius: 7, padding: "5px 7px", color: done ? C.ok : C.muted, fontSize: 10 }, children: [
-        done ? "\u2713" : "\u25CB",
-        " ",
-        label,
-        " \xB7 ",
-        row.status === "not_applicable" ? "\u4E0D\u9002\u7528" : row.status === "complete" ? "\u5B8C\u6210" : "\u5F85\u5904\u7406"
-      ] }, id);
-    }) })
-  ] });
-}
-function PaperViewToggle({ view, onChange }) {
-  const rows = [["cockpit", "\u9A7E\u9A76\u8231"], ["graph", "\u5173\u7CFB\u56FE"], ["list", "\u8BE6\u7EC6\u5217\u8868"]];
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "inline-flex", gap: 3 }, children: rows.map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", onClick: () => onChange(id), style: { padding: "1px 7px", borderRadius: 8, border: `1px solid ${view === id ? C.accent : C.border}`, background: view === id ? C.accent : "transparent", color: view === id ? "#fff" : C.muted, fontSize: 9, lineHeight: "16px", cursor: "pointer" }, children: label }, id)) });
-}
-function BlueprintTab({ data, onOpenTask, onOpenFigure }) {
-  const [view, setView] = (0, import_react.useState)("cockpit");
-  const [focusResultId, setFocusResultId] = (0, import_react.useState)(null);
-  const bp = data && data.blueprint || {};
-  const core = bp.core || {};
-  const results = Array.isArray(bp.results) ? bp.results : [];
-  const updatedAt = bp.updatedAt ? ` \xB7 \u66F4\u65B0\u4E8E ${fmtTime(bp.updatedAt)}` : "";
-  const bpError = data && data.blueprintError || null;
-  const tasksById = (0, import_react.useMemo)(() => new Map((data && data.team && data.team.tasks || []).map((t) => [t.id, t])), [data]);
-  const figById = (0, import_react.useMemo)(() => new Map((data && data.figures || []).map((f) => [f.id, f])), [data]);
-  const reviewCov = bp.reviewCoverage || null;
-  const reviewById = (0, import_react.useMemo)(() => {
-    const m = /* @__PURE__ */ new Map();
-    if (reviewCov) {
-      for (const v of [...reviewCov.core ? [reviewCov.core] : [], ...Array.isArray(reviewCov.results) ? reviewCov.results : []]) {
-        if (v && v.id) m.set(v.id, v);
-      }
-    }
-    return m;
-  }, [reviewCov]);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    bpError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          border: `1px solid ${C.err}`,
-          borderRadius: 8,
-          padding: "8px 10px",
-          marginBottom: 8,
-          background: C.card
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 12, fontWeight: 700, color: C.err }, children: "\u26A0 \u84DD\u56FE\u6587\u4EF6\u635F\u574F\uFF0C\u5DF2\u9694\u79BB\uFF08\u5907\u4EFD\u4FDD\u7559\uFF09\uFF0C\u8BF7\u7528 sci_blueprint_set \u91CD\u5EFA" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.muted, marginTop: 3 }, children: String(bpError) }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: 5 }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_set" }) })
-        ]
-      }
-    ),
-    view !== "cockpit" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperProgressOverview, { progress: bp.paperProgress, selectedId: focusResultId, onSelect: setFocusResultId, allLabel: "\u5168\u90E8 Result" }),
-    view === "cockpit" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8BBA\u6587\u9A7E\u9A76\u8231", extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperViewToggle, { view, onChange: setView }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperCockpit, { bp, selectedId: focusResultId, onSelect: setFocusResultId }) }) : view === "graph" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      Panel,
-      {
-        title: "Claim\u2014\u8BC1\u636E\u5173\u7CFB\u56FE",
-        extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperViewToggle, { view, onChange: setView }),
-        children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          FrameworkGraph,
-          {
-            bp,
-            tasksById,
-            figById,
-            workspaceRoot: data.workspaceRoot,
-            onOpenTask,
-            onOpenFigure,
-            focusResultId
-          }
-        )
-      }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        Panel,
-        {
-          title: "\u6838\u5FC3",
-          extra: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaperViewToggle, { view, onChange: setView }),
-          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoreCard, { core })
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `Results\uFF08${results.length}\uFF09`, extra: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.faint }, children: [
-        "\u652F\u6491\u6838\u5FC3\u7684\u5B50\u4E3B\u5F20",
-        updatedAt
-      ] }), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResultsList, { results, tasksById, onOpenTask, onOpenFigure, reviewById }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u8986\u76D6\u68C0\u67E5", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CoverageSection, { coverage: bp.coverage, resultsCount: results.length }) }),
-    reviewCov && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: "\u4E3B\u5F20\u5BA1\u67E5\u8986\u76D6", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReviewCoverageSection, { rc: reviewCov }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.muted, marginTop: 6, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }, children: [
-      "\u547D\u4EE4\uFF1A",
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_result_add" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_overview" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: "sci_blueprint_export" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "\uFF08\u5BFC\u51FA research/blueprint-report.md\uFF09" })
-    ] })
-  ] });
-}
-function FiguresSection({ figures, workspaceRoot, focusFigureId, onClearFocus }) {
-  const [flash, setFlash] = (0, import_react.useState)(null);
-  (0, import_react.useEffect)(() => {
-    if (!focusFigureId) return void 0;
-    const timer = setTimeout(() => {
-      try {
-        const el = document.querySelector(`[data-fig-card="${focusFigureId}"]`);
-        if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ behavior: "smooth", block: "center" });
-      } catch {
-      }
-      setFlash(focusFigureId);
-      setTimeout(() => setFlash((cur) => cur === focusFigureId ? null : cur), 1600);
-      if (typeof onClearFocus === "function") onClearFocus();
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [focusFigureId]);
-  if (!figures || figures.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u767B\u8BB0\u56FE\u8868\u3002\u8BA9\u6210\u5458\u7ED8\u56FE\u540E\u8C03\u7528 sci_figure_register \u767B\u8BB0\uFF0C\u8FD9\u91CC\u4F1A\u51FA\u73B0\u9884\u89C8\u3002" });
-  }
-  const openInNewTab = (f) => {
-    try {
-      if (f && f.path) window.open(`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`, "_blank");
-    } catch {
-    }
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: figures.map((f) => {
-    const inside = pathInsideWorkspace(f.path, workspaceRoot);
-    const previewable = inside && figurePreviewable(f.path);
-    const prev = f.prevId ? figures.find((x) => x && x.id === f.prevId) : null;
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        "data-fig-card": f.id,
-        "data-fig-version": f.version || 1,
-        onClick: () => openInNewTab(f),
-        title: f.path ? `\u70B9\u51FB\u5728\u65B0\u6807\u7B7E\u9875\u67E5\u770B\uFF1A${f.path}` : void 0,
-        style: {
-          border: `1px solid ${flash === f.id ? C.accent : C.border}`,
-          borderRadius: 8,
-          padding: "6px 10px",
-          marginBottom: 6,
-          background: flash === f.id ? C.chip : C.card,
-          cursor: f.path ? "pointer" : "default"
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-            f.resultId && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResBadge, { id: f.resultId }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 13, fontWeight: 600, color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: f.title }),
-            (f.version || 1) > 1 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { title: `\u7B2C ${f.version} \u7248\uFF08\u540C\u56FE\u91CD\u7ED8\u7684\u7248\u672C\u94FE\uFF09`, style: { fontSize: 10, color: C.accent, flexShrink: 0 }, children: [
-              "v",
-              f.version
-            ] }),
-            f.prevId && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-              "span",
-              {
-                "data-fig-prev": f.prevId,
-                onClick: (e) => {
-                  e.stopPropagation();
-                  try {
-                    if (prev && prev.path) window.open(`/plugins/dsh-science/file?path=${encodeURIComponent(prev.path)}`, "_blank");
-                  } catch {
-                  }
-                },
-                title: prev ? `\u5BF9\u6BD4\u4E0A\u4E00\u7248\u672C v${(f.version || 1) - 1}\uFF08sha ${f.prevSha || "?"}\uFF0C${prev.title}\uFF09\u2014\u2014\u70B9\u51FB\u65B0\u6807\u7B7E\u9875\u6253\u5F00` : `\u4E0A\u4E00\u7248\u672C ${f.prevId}\uFF08sha ${f.prevSha || "?"}\uFF09\u6863\u6848\u4E0D\u5728\u5F53\u524D\u5217\u8868\uFF08\u53EF\u80FD\u5DF2\u6E05\u7406\uFF09`,
-                style: {
-                  fontSize: 10,
-                  color: prev ? C.accent : C.faint,
-                  flexShrink: 0,
-                  cursor: "pointer",
-                  border: `1px solid ${prev ? C.accent : C.border}`,
-                  borderRadius: 8,
-                  padding: "0 6px",
-                  lineHeight: "16px"
-                },
-                children: [
-                  "\u21A9 v",
-                  (f.version || 1) - 1
-                ]
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditBadge, { figure: f })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.muted, margin: "2px 0" }, children: [
-            f.id,
-            " \xB7 ",
-            f.sha256_12,
-            " \xB7 ",
-            fmtBytes(f.bytes),
-            " \xB7 ",
-            fmtTime(f.registeredAt)
-          ] }),
-          f.codePath && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: [
-            "code: ",
-            f.codePath
-          ] }),
-          (f.planId || Array.isArray(f.sourceDataPaths) && f.sourceDataPaths.length > 0) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 10, color: C.faint }, children: [
-            f.planId ? `\u8BA1\u5212 ${f.planId}` : "\u65E0\u56FE\u4EF6\u8BA1\u5212",
-            " \xB7 \u6E90\u6570\u636E ",
-            Array.isArray(f.sourceDataPaths) ? f.sourceDataPaths.length : 0,
-            " \u4E2A"
-          ] }),
-          previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "img",
-            {
-              src: `/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`,
-              alt: f.title,
-              style: { display: "block", maxWidth: "100%", maxHeight: 180, marginTop: 6, borderRadius: 6, border: `1px solid ${C.divider}` }
-            }
-          ),
-          inside && !previewable && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 6, padding: "10px 8px", border: `1px dashed ${C.border}`, borderRadius: 6, textAlign: "center", fontSize: 10, color: C.muted }, children: [
-            String(f.path).split(".").pop().toUpperCase(),
-            " \u6587\u4EF6\u4E0D\u5728\u5361\u7247\u5185\u6E32\u67D3\uFF1B\u70B9\u51FB\u5361\u7247\u6253\u5F00\u539F\u6587\u4EF6\u3002"
-          ] }),
-          !inside && f.path && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: f.path, children: f.path }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigureAuditDetails, { figure: f })
-        ]
-      },
-      f.id
-    );
-  }) });
-}
-function FigurePlansSection({ plans }) {
-  const rows = Array.isArray(plans) ? [...plans].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)) : [];
-  if (rows.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u8FD8\u6CA1\u6709\u56FE\u4EF6\u8BA1\u5212\u3002\u7ED8\u56FE\u524D\u5148\u8BF4\u660E\u4E3B\u5F20\u3001\u76EE\u6807\u671F\u520A\u3001\u6700\u7EC8\u5C3A\u5BF8\u3001\u6E90\u6570\u636E\u548C\u7EDF\u8BA1\u8981\u6C42\uFF0C\u540E\u7EED\u524D\u68C0\u624D\u6709\u660E\u786E\u4F9D\u636E\u3002" });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: rows.map((plan) => {
-    const linked = !!plan.figureId;
-    const status = linked ? FIGURE_AUDIT_LABEL[plan.status] || (plan.status === "registered" ? "\u5DF2\u767B\u8BB0\xB7\u5F85\u524D\u68C0" : plan.status === "superseded" ? "\u5DF2\u88AB\u65B0\u8BA1\u5212\u53D6\u4EE3" : plan.status) : "\u5F85\u7ED8\u5236";
-    const color = linked ? FIGURE_AUDIT_COLOR[plan.status] || (plan.status === "superseded" ? C.faint : C.accent) : C.warn;
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-figure-plan": plan.id, style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 9px", marginBottom: 6, background: C.card }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
-        plan.resultId && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ResBadge, { id: plan.resultId }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 12, color: C.fg, flex: 1 }, children: plan.title || plan.id }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 10, color, border: `1px solid ${color}`, borderRadius: 8, padding: "0 6px", lineHeight: "16px" }, children: status })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, fontSize: 10, color: C.muted }, children: [
-        plan.targetJournalName || plan.targetJournal || "\u901A\u7528\u79D1\u7814\u56FE\u4EF6",
-        " \xB7 \u6700\u7EC8\u5BBD\u5EA6 ",
-        plan.targetWidthMm || "?",
-        " mm \xB7 ",
-        plan.figureRole || "main",
-        " \xB7 \u6E90\u6570\u636E ",
-        Array.isArray(plan.sourceDataPaths) ? plan.sourceDataPaths.length : 0,
-        " \u4E2A"
-      ] }),
-      plan.claim && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 3, fontSize: 10, color: C.fg }, children: [
-        "\u4E3B\u5F20\uFF1A",
-        plan.claim
-      ] }),
-      !linked && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 5, display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", fontSize: 10, color: C.muted }, children: [
-        "\u7ED8\u56FE\u5B8C\u6210\u540E\u7ED1\u5B9A\u8BA1\u5212\uFF1A ",
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CmdChip, { cmd: `sci_figure_register plan_id=${plan.id} path=...` })
-      ] })
-    ] }, plan.id);
-  }) });
-}
-function FilesSection({ files, workspaceRoot }) {
-  const [copied, setCopied] = (0, import_react.useState)(null);
-  if (!files || files.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u5DE5\u4F5C\u533A\u6587\u4EF6\u6811\u4E3A\u7A7A\uFF08\u6216 web \u670D\u52A1\u5668\u672A\u8FD0\u884C\u5728\u5DE5\u4F5C\u533A\u76EE\u5F55\uFF09\u3002" });
-  }
-  const rows = [...files].sort((a, b) => String(a.path).localeCompare(String(b.path)));
-  const onClickRow = (f) => {
-    const abs = `${workspaceRoot}/${String(f.path).replace(/\//g, "/")}`;
-    if (copyText(abs)) {
-      setCopied(f.path);
-      setTimeout(() => setCopied((cur) => cur === f.path ? null : cur), 1200);
-    }
-  };
-  const downloadFile = (f) => {
-    try {
-      window.open(`/plugins/dsh-science/file?path=${encodeURIComponent(f.path)}`, "_blank");
-    } catch {
-    }
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 0", maxHeight: 260, overflowY: "auto" }, children: rows.map((f) => {
-    const depth = String(f.path).split("/").length - 1;
-    const name = String(f.path).split("/").pop();
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        onClick: () => {
-          if (!f.dir) onClickRow(f);
-        },
-        title: f.dir ? name : `\u70B9\u51FB\u590D\u5236\u7EDD\u5BF9\u8DEF\u5F84\uFF1A${workspaceRoot}/${f.path}`,
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "3px 10px 3px",
-          paddingLeft: 10 + depth * 14,
-          fontSize: 12,
-          lineHeight: 1.5,
-          cursor: f.dir ? "default" : "pointer",
-          color: C.fg
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: 11, flexShrink: 0 }, children: f.dir ? "\u{1F4C1}" : "\u{1F4C4}" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontWeight: f.dir ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: copied === f.path ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.ok }, children: "\u2713 \u5DF2\u590D\u5236" }) : name }),
-          !f.dir && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "span",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                downloadFile(f);
-              },
-              title: "\u5728\u65B0\u6807\u7B7E\u9875\u6253\u5F00/\u4E0B\u8F7D",
-              style: { flexShrink: 0, cursor: "pointer", fontSize: 11, padding: "0 3px", color: C.muted },
-              children: "\u2B07"
-            }
-          ),
-          !f.dir && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: fmtBytes(f.size) })
-        ]
-      },
-      f.path
-    );
-  }) });
-}
-function RemoteSection({ sshHosts, sshJobs }) {
-  const hosts = sshHosts || [];
-  const jobs = (sshJobs || []).slice(0, 5);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Panel, { title: "SSH \u4E3B\u673A", children: [
-      hosts.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u4E3B\u673A\u3002\u547D\u4EE4 sci_ssh_profiles \u53EF\u6DFB\u52A0\uFF0Csci_ssh_probe \u63A2\u6D4B\u3002" }),
-      hosts.map((h) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 12, padding: "4px 0", borderBottom: `1px solid ${C.divider}`, color: C.fg }, children: [
-        "\u{1F5A5} ",
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: h.name || h.key }),
-        " ",
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted }, children: [
-          h.host,
-          " \xB7 ",
-          h.auth,
-          h.probedAt ? " \xB7 \u5DF2\u63A2\u6D4B" : ""
-        ] }),
-        h.os && h.os !== "(\u7A7A)" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.faint, paddingLeft: 18 }, children: h.os })
-      ] }, h.name || h.key))
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Panel, { title: "\u8FDC\u7A0B\u4F5C\u4E1A\uFF08\u6700\u8FD1\uFF09", children: [
-      jobs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u4F5C\u4E1A\u3002sci_job_submit \u63D0\u4EA4\uFF0C\u7ED3\u679C\u7ECF sci_job_harvest \u6536\u56DE\u3002" }),
-      jobs.map((j) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: C.muted, padding: "3px 0" }, children: [
-        j.name || j.id || j.key,
-        " \xB7 ",
-        j.mode || j.profile || "",
-        " \xB7 ",
-        fmtTime(j.submittedAt)
-      ] }, j.id || j.key))
-    ] })
-  ] });
-}
-var REVIEW_STATUS_COLOR = {
-  done: C.ok,
-  failed: C.err,
-  "parse-failed": C.warn
-};
-function ReviewsSection({ reviews }) {
-  const [expanded, setExpanded] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
-  const [details, setDetails] = (0, import_react.useState)(() => /* @__PURE__ */ new Map());
-  const [loading, setLoading] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
-  const [errors, setErrors] = (0, import_react.useState)(() => /* @__PURE__ */ new Map());
-  const inflight = (0, import_react.useRef)(/* @__PURE__ */ new Set());
-  const aliveRef = (0, import_react.useRef)(true);
-  (0, import_react.useEffect)(() => () => {
-    aliveRef.current = false;
-  }, []);
-  const loadDetail = async (id) => {
-    if (inflight.current.has(id)) return;
-    inflight.current.add(id);
-    setLoading((prev) => new Set(prev).add(id));
-    setErrors((prev) => {
-      const next = new Map(prev);
-      next.delete(id);
-      return next;
-    });
-    try {
-      const res = await fetch(`/plugins/dsh-science/review?run=${encodeURIComponent(id)}`, { credentials: "same-origin" });
-      let body = null;
-      try {
-        body = await res.json();
-      } catch {
-        body = null;
-      }
-      if (!aliveRef.current) return;
-      if (!res.ok) throw new Error(body && body.error || `HTTP ${res.status}`);
-      if (!body || !body.run) throw new Error("\u54CD\u5E94\u7F3A\u5C11 run \u6570\u636E\uFF08\u670D\u52A1\u5668\u53EF\u80FD\u4E0D\u652F\u6301 /review\uFF09");
-      setDetails((prev) => new Map(prev).set(id, body.run));
-    } catch (err) {
-      if (aliveRef.current) setErrors((prev) => new Map(prev).set(id, err && err.message || String(err)));
-    } finally {
-      inflight.current.delete(id);
-      if (aliveRef.current) {
-        setLoading((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }
-    }
-  };
-  const toggle = (id) => {
-    const opening = !expanded.has(id);
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    if (opening && !details.has(id) && !loading.has(id)) loadDetail(id);
-  };
-  if (!reviews || reviews.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Empty, { children: "\u6682\u65E0\u5BA1\u67E5\u8BB0\u5F55\u3002\u7528 /sci-review \u5BA1\u67E5\u6700\u8FD1\u4E00\u8F6E\u56DE\u590D\uFF0C\u6216\u8BA9\u961F\u957F sci_review_send \u6D3E\u7ED9 reviewer\u3002" });
-  }
-  const rows = [...reviews].sort((a, b) => (b.finishedAt || b.startedAt || 0) - (a.finishedAt || a.startedAt || 0));
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: rows.map((r) => {
-    const id = r.id || r.key;
-    const summaryFindings = Array.isArray(r.findings) ? r.findings : [];
-    const counts = r.counts || {
-      fail: summaryFindings.filter((f) => f && f.severity === "fail").length,
-      warn: summaryFindings.filter((f) => f && f.severity === "warn").length
+  const blueprint = snapshot.blueprint && typeof snapshot.blueprint === "object" ? snapshot.blueprint : {};
+  const teamState = snapshot.team && typeof snapshot.team === "object" ? snapshot.team : {};
+  const rawResults = asArray(blueprint.results);
+  const rawTasks = asArray(teamState.tasks).filter((task) => task && !HIDDEN_STATUSES.has(task.status));
+  const taskById = new Map(rawTasks.filter((task) => task.id).map((task) => [task.id, task]));
+  const figures = listOf(snapshot.figures);
+  const files = asArray(snapshot.files);
+  const tasks = rawTasks.map((task) => {
+    const blockers = taskBlockers(task, taskById);
+    return {
+      ...task,
+      label: statusLabel(task.status),
+      resultIds: taskResultIds(task),
+      blockers,
+      isBlocked: blockers.length > 0,
+      isRunning: LIVE_STATUSES.has(task.status),
+      isComplete: DONE_STATUSES.has(task.status)
     };
-    const detail = details.get(id);
-    const findings = detail && Array.isArray(detail.findings) ? detail.findings : null;
-    const meta = detail || r;
-    const isOpen = expanded.has(id);
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-        "div",
-        {
-          "data-review-row": id,
-          onClick: () => toggle(id),
-          title: `${id} \xB7 \u70B9\u51FB${isOpen ? "\u6536\u8D77" : "\u5C55\u5F00"}findings`,
-          style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "5px 8px",
-            marginBottom: 4,
-            border: `1px solid ${C.border}`,
-            borderRadius: 8,
-            background: C.card,
-            fontSize: 12,
-            cursor: "pointer"
-          },
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dot, { color: REVIEW_STATUS_COLOR[r.status] || C.faint, size: 7 }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { color: C.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: "0 1 auto" }, children: id }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: [
-              "turn ",
-              typeof r.turn === "number" ? r.turn : "\u2014"
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: C.muted, fontSize: 11, flexShrink: 0 }, children: [
-              "fail ",
-              counts.fail,
-              " \xB7 warn ",
-              counts.warn
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, marginLeft: "auto", flexShrink: 0 }, children: fmtTime(r.finishedAt || r.startedAt) }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { color: C.faint, fontSize: 10, flexShrink: 0 }, children: isOpen ? "\u25BE" : "\u25B8" })
-          ]
-        }
-      ),
-      isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-        "div",
-        {
-          "data-review-detail": id,
-          style: {
-            border: `1px solid ${C.divider}`,
-            borderRadius: 8,
-            padding: "6px 10px",
-            marginBottom: 4,
-            background: C.chip,
-            fontSize: 11,
-            color: C.muted,
-            lineHeight: 1.6
-          },
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { color: C.faint }, children: [
-              id,
-              " \xB7 ",
-              meta.status,
-              " \xB7 \u89E6\u53D1 ",
-              meta.trigger || "review",
-              " \xB7 turn ",
-              typeof meta.turn === "number" ? meta.turn : "\u2014",
-              meta.sessionId ? ` \xB7 \u4F1A\u8BDD ${String(meta.sessionId).slice(0, 12)}` : ""
-            ] }),
-            loading.has(id) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { "data-review-loading": "1", style: { marginTop: 4 }, children: "\u52A0\u8F7D findings\u2026" }),
-            errors.has(id) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { "data-review-error": "1", style: { marginTop: 4, color: C.err }, children: [
-              "findings \u52A0\u8F7D\u5931\u8D25\uFF1A",
-              errors.get(id),
-              "\uFF08\u6536\u8D77\u540E\u91CD\u65B0\u5C55\u5F00\u53EF\u91CD\u8BD5\uFF09"
-            ] }),
-            findings && findings.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: 4 }, children: [
-              "\uFF08\u65E0 findings",
-              detail && detail.status === "parse-failed" || r.status === "parse-failed" ? "\u2014\u2014\u5BA1\u67E5\u5668\u8F93\u51FA\u672A\u89E3\u6790\u4E3A JSON\uFF0C\u672C\u6B21\u4E0D\u6784\u6210\u7ED3\u8BBA" : "",
-              "\uFF09"
-            ] }),
-            findings && findings.map((f, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { whiteSpace: "pre-wrap", marginTop: 4 }, children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("b", { style: { color: f && f.severity === "fail" ? C.err : f && f.severity === "warn" ? C.warn : C.ok }, children: [
-                "[",
-                String(f && f.severity || "?").toUpperCase(),
-                "]"
-              ] }),
-              " ",
-              "(",
-              f && f.check || "?",
-              ") ",
-              f && f.message || "",
-              f && f.evidence ? ` | \u8BC1\u636E: ${String(f.evidence).slice(0, 160)}` : ""
-            ] }, i))
-          ]
-        }
-      )
-    ] }, id);
-  }) });
-}
-function ArtifactsTab({ data, focusFigureId, onClearFocusFigure }) {
-  const figs = Array.isArray(data.figures) ? data.figures : [];
-  const figurePlans = Array.isArray(data.figurePlans) ? data.figurePlans : [];
-  const files = Array.isArray(data.files) ? data.files : [];
-  const reviews = Array.isArray(data.reviews) ? data.reviews : [];
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u56FE\u4EF6\u8BA1\u5212\uFF08${figurePlans.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FigurePlansSection, { plans: figurePlans }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u56FE\u8868\uFF08${figs.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FiguresSection, { figures: figs, workspaceRoot: data.workspaceRoot, focusFigureId, onClearFocus: onClearFocusFigure }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u6587\u4EF6\uFF08${files.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FilesSection, { files, workspaceRoot: data.workspaceRoot }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RemoteSection, { sshHosts: data.sshHosts, sshJobs: data.sshJobs }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Panel, { title: `\u5BA1\u67E5\uFF08${reviews.length}\uFF09`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ReviewsSection, { reviews }) })
-  ] });
-}
-var SafeBody = class extends import_react.default.Component {
-  constructor(p) {
-    super(p);
-    this.state = { err: null };
-  }
-  static getDerivedStateFromError(err) {
-    return { err };
-  }
-  render() {
-    if (this.state.err) {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { padding: 10, fontSize: 12, color: C.err }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { children: "\u5DE5\u4F5C\u53F0\u6E32\u67D3\u51FA\u9519" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", { style: { whiteSpace: "pre-wrap", fontSize: 11 }, children: String(this.state.err && this.state.err.message || this.state.err) })
-      ] });
+  });
+  const resultRows = rawResults.filter((result) => result && typeof result === "object").map((result) => {
+    const linkedTasks = tasks.filter((task) => taskResultIds(task).includes(result.id) || asArray(result.tasks).includes(task.id));
+    const linkedFigures = figures.filter((figure) => figure && (figure.resultId === result.id || asArray(figure.resultIds).includes(result.id) || asArray(result.figures).includes(figure.id)));
+    const readiness = readinessForResult(blueprint, result);
+    const required = Object.values(readiness).filter((item) => item && item.state === "blocked").flatMap((item) => asArray(item.blockers));
+    const recommended = Object.values(readiness).filter((item) => item && item.state === "in_progress").flatMap((item) => asArray(item.blockers));
+    return {
+      ...result,
+      title: nonEmpty(result.title) || nonEmpty(result.claim) || "\u672A\u547D\u540D\u7814\u7A76\u7ED3\u679C",
+      statusLabel: { planned: "\u8BA1\u5212\u4E2D", in_progress: "\u8FDB\u884C\u4E2D", supported: "\u5DF2\u83B7\u5F97\u652F\u6301", negative: "\u4E0E\u9884\u671F\u4E0D\u7B26", dropped: "\u4E0D\u7EB3\u5165\u6B63\u6587" }[result.status] || "\u72B6\u6001\u5F85\u6838\u5BF9",
+      confirmed: result.confirmed === true,
+      readiness,
+      taskCount: linkedTasks.length,
+      completedTaskCount: linkedTasks.filter((task) => task.isComplete).length,
+      runningTaskCount: linkedTasks.filter((task) => task.isRunning).length,
+      figures: linkedFigures,
+      requiredItems: [...new Set(required)],
+      recommendedItems: [...new Set(recommended)],
+      tasks: linkedTasks
+    };
+  });
+  const activeTasks = tasks.filter((task) => !task.isComplete);
+  const counts = {
+    running: tasks.filter((task) => task.isRunning && !task.isBlocked).length,
+    waiting: tasks.filter((task) => task.status === "pending" && !task.isBlocked).length,
+    completed: tasks.filter((task) => task.isComplete).length,
+    blocked: tasks.filter((task) => task.isBlocked).length
+  };
+  const members = asArray(teamState.members).map((member) => {
+    const liveStatus = snapshot.memberLive?.[member.name] || "offline";
+    return {
+      ...member,
+      liveStatus,
+      liveStatusLabel: memberLiveLabel(liveStatus),
+      liveStatusTone: memberLiveTone(liveStatus),
+      currentTasks: tasks.filter((task) => task.assignee === member.name && !task.isComplete),
+      lastReport: nonEmpty(member.lastReport) || nonEmpty(member.lastSummary) || ""
+    };
+  });
+  const blockedTasks = tasks.filter((task) => task.isBlocked);
+  const activity = tasks.filter((task) => nonEmpty(task.report) || nonEmpty(task.resultSummary) || nonEmpty(task.updatedAt) || nonEmpty(task.completedAt)).sort((a, b) => Number(b.updatedAt || b.completedAt || 0) - Number(a.updatedAt || a.completedAt || 0)).slice(0, 8).map((task) => ({
+    id: task.id,
+    summary: nonEmpty(task.report) || nonEmpty(task.resultSummary) || task.subject || task.id,
+    resultIds: task.resultIds,
+    at: task.updatedAt || task.completedAt || task.createdAt || null,
+    status: task.status
+  }));
+  const paper = {
+    title: nonEmpty(blueprint.core?.title) || "\u672A\u547D\u540D\u7814\u7A76\u9879\u76EE",
+    stage: STAGES.some((stage) => stage.id === blueprint.stage) ? blueprint.stage : "explore",
+    stageLabel: STAGES.find((stage) => stage.id === blueprint.stage)?.label || "\u7814\u7A76\u63A2\u7D22",
+    stageUpdatedAt: Number(blueprint.stageUpdatedAt || 0),
+    stages: STAGES.map((stage) => ({ ...stage, state: stageStateOf(stage, blueprint.stage || "explore") })),
+    venue: nonEmpty(blueprint.core?.venue),
+    core: {
+      title: nonEmpty(blueprint.core?.title),
+      claim: nonEmpty(blueprint.core?.claim),
+      innovation: nonEmpty(blueprint.core?.innovation),
+      confirmed: blueprint.core?.confirmed === true,
+      revision: blueprint.core?.revision || 1
+    },
+    narrative: nonEmpty(blueprint.narrative),
+    results: resultRows,
+    supportedResults: resultRows.filter((result) => result.status === "supported").length,
+    totalResults: resultRows.length,
+    updatedAt: blueprint.updatedAt || snapshot.ts || null,
+    error: nonEmpty(snapshot.blueprintError)
+  };
+  const artifacts = files.map((file) => {
+    const path = asText(file.path);
+    const category = fileCategory(path);
+    const ext = path.split(".").pop()?.toLowerCase() || "";
+    return {
+      ...file,
+      path,
+      category,
+      url: path ? fileUrl(path) : null,
+      previewable: category === "figures" && IMAGE_EXTENSIONS.has(ext)
+    };
+  });
+  const figureRecords = figures.map((figure) => {
+    const path = nonEmpty(figure.file) || nonEmpty(figure.path) || nonEmpty(figure.filePath) || nonEmpty(figure.outputPath);
+    const ext = path.split(".").pop()?.toLowerCase() || "";
+    return {
+      ...figure,
+      path,
+      url: path ? fileUrl(path) : null,
+      previewable: IMAGE_EXTENSIONS.has(ext),
+      title: nonEmpty(figure.title) || nonEmpty(figure.name) || nonEmpty(path.split(/[\\/]/).pop()) || figure.id || "\u672A\u547D\u540D\u56FE\u4EF6"
+    };
+  });
+  const figureById = new Map(figureRecords.filter((figure) => figure.id).map((figure) => [figure.id, figure]));
+  const figureFamilyKey = (figure) => {
+    const familyId = nonEmpty(figure.figureId) || nonEmpty(figure.familyId);
+    if (familyId) return `id:${familyId}`;
+    const stem = figure.path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, "").trim().toLowerCase();
+    const resultId = nonEmpty(figure.resultId);
+    return stem && resultId ? `result:${resultId}:stem:${stem}` : "";
+  };
+  for (const figure of figureRecords) {
+    const explicitPreviousId = nonEmpty(figure.prevId) || nonEmpty(figure.previousVersionId);
+    if (explicitPreviousId && figureById.has(explicitPreviousId)) {
+      figure.previousVersionId = explicitPreviousId;
+      figure.previousVersionRelation = "recorded";
+      continue;
     }
-    return this.props.children;
+    const timestamp = Number(figure.registeredAt || figure.createdAt || 0);
+    const family = figureFamilyKey(figure);
+    if (!family || !Number.isFinite(timestamp) || timestamp <= 0) continue;
+    const previous = figureRecords.filter((candidate) => candidate !== figure && figureFamilyKey(candidate) === family).filter((candidate) => {
+      const candidateTime = Number(candidate.registeredAt || candidate.createdAt || 0);
+      return Number.isFinite(candidateTime) && candidateTime > 0 && candidateTime < timestamp;
+    }).sort((a, b) => Number(b.registeredAt || b.createdAt || 0) - Number(a.registeredAt || a.createdAt || 0))[0];
+    if (previous?.id) {
+      figure.previousVersionId = previous.id;
+      figure.previousVersionRelation = "inferred";
+    }
   }
-};
-function WorkbenchBody({ openMemberSession, memberOpenAvailable }) {
-  const [tab, setTab] = (0, import_react.useState)("paper");
-  const [focusTaskId, setFocusTaskId] = (0, import_react.useState)(null);
-  const [focusFigureId, setFocusFigureId] = (0, import_react.useState)(null);
-  const state = usePollState(POLL_MS);
-  const goTeam = (taskId) => {
-    if (taskId) setFocusTaskId(taskId);
-    setTab("team");
+  const team = {
+    members,
+    tasks,
+    activeTasks,
+    counts,
+    blockedTasks,
+    activity,
+    updatedAt: snapshot.ts || null
   };
-  const goArtifacts = (figureId) => {
-    if (figureId) setFocusFigureId(figureId);
-    setTab("artifacts");
+  paper.nextStep = nextStepOf(paper, team);
+  return {
+    available: true,
+    generatedAt: snapshot.generatedAt || null,
+    paper,
+    team,
+    artifacts: {
+      figures: figureRecords,
+      plans: asArray(snapshot.figurePlans),
+      files: artifacts,
+      reviews: asArray(snapshot.reviews),
+      workspaceRoot: asText(snapshot.workspaceRoot),
+      groups: [
+        { id: "figures", label: "\u56FE\u8868", items: artifacts.filter((item) => item.category === "figures") },
+        { id: "manuscript", label: "\u8BBA\u6587\u6587\u7A3F", items: artifacts.filter((item) => item.category === "manuscript") },
+        { id: "presentation", label: "\u6C47\u62A5\u6750\u6599", items: artifacts.filter((item) => item.category === "presentation") },
+        { id: "data-code", label: "\u6570\u636E\u4E0E\u4EE3\u7801", items: artifacts.filter((item) => item.category === "data-code") },
+        { id: "other", label: "\u5176\u4ED6\u6587\u4EF6", items: artifacts.filter((item) => item.category === "other") }
+      ]
+    },
+    experts: {
+      roles: snapshot.roles && typeof snapshot.roles === "object" ? snapshot.roles : {},
+      skillMenu: snapshot.skillMenu && typeof snapshot.skillMenu === "object" ? snapshot.skillMenu : { catalog: {}, installed: {}, integrations: [] }
+    }
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { padding: 10, fontSize: 13 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: "@keyframes dsh-sci-pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }@keyframes dsh-sci-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2.5px) } }@keyframes dsh-sci-nodeglow { 0%,100% { box-shadow: 0 0 0 0 rgba(27,110,194,0) } 50% { box-shadow: 0 0 6px 1px rgba(27,110,194,0.4) } }[data-task-row],[data-fig-card],[data-result-row],[data-review-row],[data-inbox-row],[data-member-tile],[data-dag-node],[data-dep-chip],[data-row-dep-chip],[data-fig-prev]{transition:background-color 120ms ease,border-color 120ms ease,opacity 120ms ease,color 120ms ease}[data-task-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important;border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-result-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important;border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-review-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important;border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-fig-card]:hover{border-color:var(--dsw-alias-border-l4, rgba(127,127,127,0.4))!important}[data-inbox-row]:hover{background:var(--dsw-alias-markdown-code-block, rgba(127,127,127,0.10))!important}[data-member-tile]:hover{background:var(--dsw-alias-button-ghost-active-fill, rgba(127,127,127,0.14))}[data-dag-node]{transition:border-color 140ms ease,background 140ms ease,box-shadow 220ms ease}[data-dag-node]:hover{border-color:var(--dsw-alias-state-business-primary, #1B6EC2)!important}[data-dep-chip]:hover,[data-row-dep-chip]:hover{border-color:var(--dsw-alias-state-business-primary, #1B6EC2)!important;color:var(--dsw-alias-state-business-primary, #1B6EC2)!important}" }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: { fontSize: 14 }, children: "\u{1F9EC} \u8BBA\u6587\u8BC1\u636E\u5DE5\u4F5C\u53F0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: 10, color: C.muted }, children: [
-        "v",
-        VERSION
+}
+
+// client-src/workbench/use-workbench-state.js
+var STATE_URL = "/plugins/dsh-science/state";
+function useWorkbenchState(pollMs = 5e3) {
+  const [record, setRecord] = (0, import_react7.useState)({ loading: true, raw: null, view: null, error: null });
+  const refresh = (0, import_react7.useCallback)(async () => {
+    try {
+      const response = await fetch(STATE_URL, { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const raw = await response.json();
+      const view = stateViewOf(raw);
+      if (!view.available) throw new Error(view.error);
+      setRecord({ loading: false, raw, view, error: null });
+      return view;
+    } catch (error) {
+      setRecord((current) => ({ loading: false, raw: current.raw, view: current.view, error: error.message || "\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\u5DE5\u4F5C\u53F0\u72B6\u6001\u3002" }));
+      return null;
+    }
+  }, []);
+  (0, import_react7.useEffect)(() => {
+    let active = true;
+    const run = async () => {
+      if (active) await refresh();
+    };
+    void run();
+    const timer = setInterval(run, pollMs);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [pollMs, refresh]);
+  return { ...record, refresh };
+}
+
+// client-src/workbench/ResearchWorkbench.jsx
+var import_jsx_runtime6 = require("react/jsx-runtime");
+var NAV = [
+  { id: "paper", label: "\u8BBA\u6587\u4E3B\u7EBF" },
+  { id: "team", label: "\u56E2\u961F\u8FDB\u5C55" },
+  { id: "artifacts", label: "\u56FE\u8868\u4E0E\u6210\u679C" },
+  { id: "experts", label: "\u4E13\u5BB6\u914D\u7F6E" }
+];
+function WorkbenchMark() {
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "sci-wb-mark", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("svg", { width: "22", height: "22", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: "M9 3h6M10 3v6.2l-5.3 9.1A2.5 2.5 0 0 0 6.9 22h10.2a2.5 2.5 0 0 0 2.2-3.7L14 9.2V3" }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("path", { d: "M8 15h8M9.4 12.5h5.2" })
+  ] }) });
+}
+function ResearchWorkbench({ services }) {
+  const state = useWorkbenchState();
+  const [page, setPage] = (0, import_react8.useState)("paper");
+  const [dialog, setDialog] = (0, import_react8.useState)(null);
+  const [busy, setBusy] = (0, import_react8.useState)(false);
+  const [error, setError] = (0, import_react8.useState)(null);
+  const [toast, setToast] = (0, import_react8.useState)("");
+  const openAction = (action, targetId = null) => {
+    setError(null);
+    setDialog({ action, targetId });
+  };
+  const openConversation = () => services?.openConversation?.();
+  const submitAction = async (values) => {
+    if (!dialog || busy || !state.raw) return;
+    const built = buildWorkflowRequest({ action: dialog.action, paperState: state.raw.blueprint || {}, targetId: dialog.targetId, userInput: values });
+    if (!built.ok) {
+      setError(built.error);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const session = await services?.getCurrentSession?.();
+      const result = await submitWorkflowRequest({ session, request: built.request });
+      if (!result.ok) {
+        setError(result);
+        return;
+      }
+      setDialog(null);
+      setToast("\u8BF7\u6C42\u5DF2\u63D0\u4EA4\u5230\u5F53\u524D\u5BF9\u8BDD\uFF1B\u7814\u7A76\u72B6\u6001\u4F1A\u5728\u540E\u7AEF\u8BB0\u5F55\u66F4\u65B0\u540E\u5237\u65B0\u3002");
+      window.setTimeout(() => setToast(""), 5200);
+      await state.refresh();
+    } catch (errorValue) {
+      setError({ message: "\u65E0\u6CD5\u63D0\u4EA4\u5230\u5F53\u524D\u5BF9\u8BDD\u3002", recovery: "\u786E\u8BA4 DSH \u4F1A\u8BDD\u4ECD\u7136\u6253\u5F00\u540E\uFF0C\u53EF\u4EE5\u5B89\u5168\u91CD\u8BD5\u3002", detail: errorValue.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copyDiagnostic = async (detail) => {
+    try {
+      await navigator.clipboard.writeText([detail.message, detail.recovery, detail.detail].filter(Boolean).join("\n"));
+    } catch {
+    }
+  };
+  const currentView = state.view;
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-workbench", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(WorkbenchStyles, {}),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-wb-shell", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("header", { className: "sci-wb-header", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-wb-brand", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(WorkbenchMark, {}),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h1", { children: "\u79D1\u7814\u5DE5\u4F5C\u53F0" }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "sci-wb-subtitle", children: currentView ? currentView.paper.title : "\u8BBA\u6587\u4E3B\u7EBF \xB7 \u56E2\u961F\u8FDB\u5C55 \xB7 \u79D1\u7814\u6210\u679C" })
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-wb-head-actions", children: [
+          currentView && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Badge, { children: currentView.paper.stageLabel }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Button, { onClick: openConversation, children: "\u6253\u5F00\u5BF9\u8BDD" })
+        ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("main", { className: "sci-wb-content", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("nav", { className: "sci-wb-nav", "aria-label": "\u79D1\u7814\u5DE5\u4F5C\u53F0\u9875\u9762", children: NAV.map((item) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", "aria-current": page === item.id ? "true" : void 0, onClick: () => setPage(item.id), children: item.label }, item.id)) }),
+        state.loading && !currentView ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Panel, { children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "sci-empty", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h2", { children: "\u6B63\u5728\u8BFB\u53D6\u7814\u7A76\u72B6\u6001" }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { children: "\u5DE5\u4F5C\u53F0\u4ECE\u5F53\u524D DSH \u9879\u76EE\u8BFB\u53D6\u8BBA\u6587\u84DD\u56FE\u3001\u56E2\u961F\u4EFB\u52A1\u548C\u5DF2\u767B\u8BB0\u6210\u679C\u3002" })
+        ] }) }) }) : state.error && !currentView ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Panel, { title: "\u6682\u65F6\u65E0\u6CD5\u8BFB\u53D6\u5DE5\u4F5C\u53F0\u72B6\u6001", children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(StatusMessage, { tone: "error", children: [
+          state.error,
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-result-actions", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Button, { onClick: state.refresh, children: "\u91CD\u65B0\u8BFB\u53D6" }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Button, { onClick: openConversation, children: "\u6253\u5F00\u5BF9\u8BDD" })
+          ] })
+        ] }) }) : currentView && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_jsx_runtime6.Fragment, { children: [
+          page === "paper" && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(PaperSpinePage, { view: currentView, raw: state.raw, onAction: openAction, onOpenConversation: openConversation, onNavigate: setPage }),
+          page === "team" && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(TeamProgressPage, { view: currentView, openMemberSession: services?.openMemberSession, memberOpenAvailable: services?.memberOpenAvailable?.(currentView) }),
+          page === "artifacts" && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ArtifactsPage, { view: currentView, onAction: openAction }),
+          page === "experts" && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ExpertSetupPage, { view: currentView, refresh: state.refresh }),
+          state.error && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-small", style: { marginTop: 14 }, role: "status", children: [
+            "\u72B6\u6001\u5237\u65B0\u5931\u8D25\uFF0C\u6B63\u5728\u663E\u793A\u4E0A\u4E00\u6B21\u6210\u529F\u8BFB\u53D6\u7684\u6570\u636E\uFF1A",
+            state.error
+          ] })
+        ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", gap: 4, margin: "4px 0 2px" }, children: [
-      ["paper", "\u8BBA\u6587\u9A7E\u9A76\u8231"],
-      ["team", "\u56E2\u961F\u6267\u884C"],
-      ["artifacts", "\u56FE\u8868\u4E0E\u4EA7\u7269"]
-    ].map(([id, label]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "button",
-      {
-        "data-tab": id,
-        onClick: () => setTab(id),
-        style: {
-          flex: 1,
-          padding: "5px 0",
-          fontSize: 12,
-          border: `1px solid ${tab === id ? C.accent : C.border}`,
-          borderRadius: 6,
-          background: tab === id ? C.accent : "transparent",
-          color: tab === id ? "#fff" : C.fg,
-          cursor: "pointer"
-        },
-        children: label
-      },
-      id
-    )) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SafeBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DataGate, { state, fallback: tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SkillMenuDesktopFallback, {}) : null, children: () => tab === "team" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      TeamTab,
-      {
-        data: state.data,
-        openMemberSession,
-        memberOpenAvailable,
-        focusTaskId,
-        onClearFocusTask: () => setFocusTaskId(null),
-        refresh: state.refresh
+    dialog && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ActionDialog, { action: dialog.action, target: dialog.targetId && currentView?.paper.results.find((result) => result.id === dialog.targetId), onClose: () => {
+      if (!busy) {
+        setDialog(null);
+        setError(null);
       }
-    ) : tab === "paper" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BlueprintTab, { data: state.data, onOpenTask: goTeam, onOpenFigure: goArtifacts }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArtifactsTab, { data: state.data, focusFigureId, onClearFocusFigure: () => setFocusFigureId(null) }) }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 10, color: C.muted, marginTop: 8, borderTop: `1px solid ${C.divider}`, paddingTop: 6 }, children: "\u4E3B\u5F20\u4E0E\u8BC1\u636E\u51B3\u5B9A\u6587\u7AE0\u8FB9\u754C \xB7 \u56E2\u961F\u6267\u884C\u72B6\u6001\u6BCF 3 \u79D2\u5237\u65B0" })
+    }, onSubmit: submitAction, busy, error, onOpenConversation: openConversation, onCopyDiagnostic: copyDiagnostic }),
+    toast && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-toast", role: "status", children: [
+      toast,
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "sci-result-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Button, { small: true, onClick: openConversation, children: "\u6253\u5F00\u5BF9\u8BDD" }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Button, { small: true, onClick: () => setToast(""), children: "\u5173\u95ED" })
+      ] })
+    ] })
+  ] });
+}
+
+// client-src/workbench/QuickWorkbench.jsx
+var import_react9 = __toESM(require("react"), 1);
+var import_jsx_runtime7 = require("react/jsx-runtime");
+function QuickWorkbench({ services }) {
+  const state = useWorkbenchState(8e3);
+  const [busy, setBusy] = (0, import_react9.useState)(false);
+  const [message, setMessage] = (0, import_react9.useState)("");
+  const view = state.view;
+  const submitNext = async () => {
+    if (!view || busy) return;
+    const step = view.paper.nextStep;
+    if (!step.action) {
+      setMessage("\u8BF7\u6253\u5F00\u5B8C\u6574\u5DE5\u4F5C\u53F0\u67E5\u770B\u5F53\u524D\u5EFA\u8BAE\u3002");
+      return;
+    }
+    if (step.action === "explore") {
+      setMessage("\u8BF7\u6253\u5F00\u5B8C\u6574\u5DE5\u4F5C\u53F0\u586B\u5199\u7814\u7A76\u95EE\u9898\u540E\u518D\u5F00\u59CB\u63A2\u7D22\u3002");
+      services?.openWorkbench?.();
+      return;
+    }
+    const built = buildWorkflowRequest({ action: step.action, paperState: state.raw?.blueprint || {}, targetId: step.targetId });
+    if (!built.ok) {
+      setMessage(built.error.message);
+      services?.openWorkbench?.();
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const session = await services?.getCurrentSession?.();
+      const result = await submitWorkflowRequest({ session, request: built.request });
+      setMessage(result.ok ? "\u8BF7\u6C42\u5DF2\u63D0\u4EA4\u5230\u5F53\u524D\u5BF9\u8BDD\u3002" : `${result.message} ${result.recovery}`);
+      if (result.ok) await state.refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "sci-workbench sci-quick", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(WorkbenchStyles, {}),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Panel, { title: "\u79D1\u7814\u5DE5\u4F5C\u53F0", subtitle: view ? `\u5F53\u524D\u9636\u6BB5\uFF1A${view.paper.stageLabel}` : "\u8BBA\u6587\u8FDB\u5EA6\u4E0E\u4E0B\u4E00\u6B65\u64CD\u4F5C", children: state.error && !view ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(StatusMessage, { tone: "error", children: [
+      state.error,
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Button, { small: true, onClick: state.refresh, children: "\u91CD\u65B0\u8BFB\u53D6" })
+    ] }) : view ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h2", { className: "sci-title", children: view.paper.title }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "sci-small", children: [
+        view.paper.totalResults,
+        " \u9879\u7ED3\u679C \xB7 ",
+        view.team.counts.running,
+        " \u9879\u8FD0\u884C\u4E2D \xB7 ",
+        view.team.counts.blocked,
+        " \u9879\u53D7\u963B"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("hr", { className: "sci-rule" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("b", { children: view.paper.nextStep.label }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "sci-result-actions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Button, { primary: true, small: true, onClick: submitNext, disabled: busy, children: busy ? "\u6B63\u5728\u63D0\u4EA4\u2026" : "\u7EE7\u7EED\u4E0B\u4E00\u6B65" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Button, { small: true, onClick: () => services?.openWorkbench?.(), children: "\u6253\u5F00\u5B8C\u6574\u5DE5\u4F5C\u53F0" })
+      ] }),
+      message && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "sci-small", role: "status", children: message })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "sci-small", children: "\u6B63\u5728\u8BFB\u53D6\u72B6\u6001\u2026" }) })
+  ] });
+}
+
+// client-src/workbench/host-adapter.js
+var WORKBENCH_REQUIRED_SERVICES = Object.freeze([
+  "slots",
+  "sessions",
+  "layout",
+  "sidebarRightTabs",
+  "uiWorkspace"
+]);
+function registerGuardedPart(mount, part, register) {
+  const state = mount && typeof mount === "object" ? mount : {};
+  if (state[part]) return () => {
+  };
+  const dispose = register();
+  state[part] = true;
+  return () => {
+    state[part] = false;
+    if (typeof dispose === "function") dispose();
+  };
+}
+
+// client-src/index.jsx
+var import_jsx_runtime8 = require("react/jsx-runtime");
+var inject = [...WORKBENCH_REQUIRED_SERVICES];
+var PANEL_ID = "dsh-science/workbench";
+function service(ctx, name) {
+  try {
+    return ctx.get(name);
+  } catch {
+    return void 0;
+  }
+}
+function currentSessionId(sessions) {
+  try {
+    const snapshot = sessions?.list?.getSnapshot?.();
+    const main = Object.values(snapshot?.byId || {}).find((row) => row?.retainedBy && (row.retainedBy.mainView || 0) > 0);
+    if (main?.id) return main.id;
+    return typeof snapshot?.current === "string" ? snapshot.current : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function makeServices(ctx) {
+  const getCurrentSession = () => {
+    const sessions = service(ctx, "sessions") || ctx.sessions;
+    const id = currentSessionId(sessions);
+    if (!id || typeof sessions?.binding !== "function") return void 0;
+    try {
+      return sessions.binding(id)?.session;
+    } catch {
+      return void 0;
+    }
+  };
+  const openConversation = () => {
+    const layout = service(ctx, "layout") || ctx.layout;
+    if (typeof layout?.selectPanel !== "function") throw new Error("\u5F53\u524D DSH \u4E0D\u652F\u6301\u5207\u6362\u5230\u5BF9\u8BDD\u9762\u677F\u3002");
+    layout.selectPanel(null);
+  };
+  const openWorkbench = () => {
+    const layout = service(ctx, "layout") || ctx.layout;
+    layout?.selectPanel?.(PANEL_ID);
+  };
+  const openMemberSession = (member) => {
+    const workspace = service(ctx, "uiWorkspace");
+    if (typeof workspace?.openSession !== "function") throw new Error("\u5F53\u524D DSH \u4E0D\u652F\u6301\u6253\u5F00\u6210\u5458\u4F1A\u8BDD\u3002");
+    if (!member?.childId) throw new Error("\u8BE5\u6210\u5458\u6CA1\u6709\u8BB0\u5F55\u53EF\u6253\u5F00\u7684\u4F1A\u8BDD\u3002");
+    const sessions = service(ctx, "sessions") || ctx.sessions;
+    const parentSessionId = member.parentSessionId || currentSessionId(sessions);
+    if (!parentSessionId) throw new Error("\u65E0\u6CD5\u786E\u5B9A\u6210\u5458\u4F1A\u8BDD\u6240\u5C5E\u7684\u9879\u76EE\u4F1A\u8BDD\u3002");
+    workspace.openSession({ parentSessionId, childSessionId: member.childId, mode: "continuable" });
+  };
+  const memberOpenAvailable = (view) => {
+    const workspace = service(ctx, "uiWorkspace");
+    const sessions = service(ctx, "sessions") || ctx.sessions;
+    return typeof workspace?.openSession === "function" && Boolean(currentSessionId(sessions) || view?.team?.members?.some((member) => member.parentSessionId && member.childId));
+  };
+  return { getCurrentSession, openConversation, openWorkbench, openMemberSession, memberOpenAvailable };
+}
+function WorkbenchIcon({ size = 22, active = false }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", "data-active": active || void 0, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("path", { d: "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z" }),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("path", { d: "M8 8h8M8 12h5M8 16h3" })
   ] });
 }
 function apply(ctx) {
-  let mount = null;
+  let mount;
   try {
     mount = window.__DSH_SCIENCE_CLIENT_MOUNT__ || null;
-    if (!mount) window.__DSH_SCIENCE_CLIENT_MOUNT__ = mount = { tab: false, body: false };
-    if (mount.tab && mount.body) {
-      console.warn("[dsh-science] apply() re-invoked on an already-mounted page; keeping first registration (double-mount guard)");
-      return;
-    }
-    window.__DSH_SCIENCE_CLIENT_MOUNTED = true;
-    window.__DSH_SCIENCE_CLIENT_APPLIED = true;
+    if (!mount) window.__DSH_SCIENCE_CLIENT_MOUNT__ = mount = { main: false, panelIcon: false, quick: false, tab: false };
   } catch {
-    mount = null;
+    mount = { main: false, panelIcon: false, quick: false, tab: false };
   }
-  function service(name) {
-    try {
-      return ctx.get(name);
-    } catch {
-      return void 0;
-    }
-  }
-  function currentSessionIdOf() {
-    try {
-      const list = service("sessions") && service("sessions").list;
-      if (!list || typeof list.getSnapshot !== "function") return void 0;
-      const snap = list.getSnapshot();
-      if (!snap) return void 0;
-      const row = Object.values(snap.byId || {}).find(
-        (r) => r && r.retainedBy && (r.retainedBy.mainView ?? 0) > 0
-      );
-      if (row && row.id) return row.id;
-      if (typeof snap.current === "string") return snap.current;
-      return void 0;
-    } catch {
-      return void 0;
-    }
-  }
-  function openMemberSession(member) {
-    const ws = service("uiWorkspace");
-    if (!ws || typeof ws.openSession !== "function") {
-      throw new Error("\u5F53\u524D\u5BBF\u4E3B\u4E0D\u652F\u6301\u6253\u5F00\u6210\u5458\u4F1A\u8BDD\uFF08uiWorkspace \u7F3A\u5931\uFF09");
-    }
-    const childId = member && member.childId;
-    if (!childId) throw new Error("\u8BE5\u6210\u5458\u672A\u8BB0\u5F55 childId\uFF08\u8F83\u8001\u7684\u4EFB\u52A1\u677F\u6570\u636E\uFF0C\u91CD\u65B0\u751F\u6210\u6210\u5458\u540E\u53EF\u7528\uFF09");
-    const recorded = member && member.parentSessionId;
-    const parentId = recorded || currentSessionIdOf();
-    if (!parentId) throw new Error(recorded ? "\u8BE5\u6210\u5458\u8BB0\u5F55\u7684\u7236\u4F1A\u8BDD\u4E3A\u7A7A" : "\u65E0\u6CD5\u786E\u5B9A\u5F53\u524D\u4E3B\u4F1A\u8BDD\uFF08\u8BE5\u6210\u5458\u4E5F\u672A\u8BB0\u5F55 parentSessionId\uFF09");
-    ws.openSession({ parentSessionId: parentId, childSessionId: childId, mode: "continuable" });
-  }
-  function memberOpenAvailable() {
-    try {
-      const ws = service("uiWorkspace");
-      if (!ws || typeof ws.openSession !== "function") return false;
-      return !!currentSessionIdOf() || teamRuntime.hasRecordedParents;
-    } catch {
-      return false;
-    }
-  }
-  try {
-    if (!mount || !mount.tab) {
-      ctx.effect(
-        () => {
-          const dispose = ctx.sidebarRightTabs.register({
-            id: "dsh-science/workbench",
-            kind: "workbench",
-            title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
-            guide: [
-              {
-                id: "workbench",
-                order: 10,
-                title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
-                description: () => "\u8BBA\u6587\u8BC1\u636E\u4E3B\u5E72\uFF08\u9636\u6BB5\u95F8\u95E8/Claim/\u8BC1\u636E\u5305/\u6295\u7A3F\u5C31\u7EEA\u5EA6\uFF09\xB7 \u56E2\u961F\u6267\u884C\uFF08\u6210\u5458\u59FF\u6001/\u5171\u4EAB\u4EFB\u52A1/DAG/\u56DE\u62A5\u53F0\u8D26\uFF09\xB7 \u56FE\u8868\u4E0E\u79D1\u7814\u4EA7\u7269\uFF08dsh-science\uFF09"
-              }
-            ]
-          });
-          if (mount) mount.tab = true;
-          return () => {
-            if (mount) mount.tab = false;
-            if (typeof dispose === "function") dispose();
-          };
-        },
-        "dsh-science workbench tab type"
-      );
-    }
-    if (!mount || !mount.body) {
-      ctx.effect(
-        () => {
-          const dispose = ctx.slots.inject(
-            "sidebar.right.pane.tab",
-            () => ctx.slots.register(
-              {
-                name: "sidebar.right.pane.tab",
-                key: "dsh-science/workbench",
-                inject: () => ({ openMemberSession, memberOpenAvailable })
-              },
-              WorkbenchBody
-            )
-          );
-          if (mount) mount.body = true;
-          return () => {
-            if (mount) mount.body = false;
-            if (typeof dispose === "function") dispose();
-          };
-        },
-        "dsh-science workbench tab body"
-      );
-    }
-  } catch (err) {
-    console.error("[dsh-science] sidebar tab registration failed:", err);
+  const services = makeServices(ctx);
+  ctx.effect(() => registerGuardedPart(mount, "main", () => ctx.slots.inject("main", () => ctx.slots.register({
+    name: "main",
+    key: PANEL_ID,
+    inject: () => ({ services })
+  }, ResearchWorkbench))), "dsh-science main workbench");
+  ctx.effect(() => registerGuardedPart(mount, "panelIcon", () => ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({
+    name: "sidebar.panellist",
+    id: PANEL_ID,
+    order: 40,
+    label: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0"
+  }, WorkbenchIcon))), "dsh-science global panel entry");
+  const tabs = service(ctx, "sidebarRightTabs") || ctx.sidebarRightTabs;
+  if (tabs && typeof tabs.register === "function") {
+    ctx.effect(() => registerGuardedPart(mount, "tab", () => tabs.register({
+      id: PANEL_ID,
+      kind: "workbench",
+      title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0",
+      guide: [{ id: "workbench", order: 10, title: () => "\u79D1\u7814\u5DE5\u4F5C\u53F0", description: () => "\u663E\u793A\u7814\u7A76\u9636\u6BB5\u3001\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u548C\u56E2\u961F\u8FD0\u884C\u72B6\u6001\u3002\u6253\u5F00\u5B8C\u6574\u5DE5\u4F5C\u53F0\u53EF\u67E5\u770B\u8BBA\u6587\u4E3B\u7EBF\u3001\u56E2\u961F\u8FDB\u5C55\u3001\u56FE\u8868\u6210\u679C\u4E0E\u4E13\u5BB6\u914D\u7F6E\u3002" }]
+    })), "dsh-science right-rail tab");
+    ctx.effect(() => registerGuardedPart(mount, "quick", () => ctx.slots.inject("sidebar.right.pane.tab", () => ctx.slots.register({
+      name: "sidebar.right.pane.tab",
+      key: PANEL_ID,
+      inject: () => ({ services })
+    }, QuickWorkbench))), "dsh-science right-rail companion");
   }
 }
 return module.exports; } });

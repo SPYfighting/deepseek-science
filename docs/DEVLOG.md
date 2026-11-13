@@ -802,3 +802,15 @@ finding，并贯通 /state、overview、export、工作台 UI（规格见 SPEC �
 - 最终验证：`npm run build:client` 成功；全量测试 243 tests / 241 pass / 0 fail / 2 skip。两项 skip 仍是 Windows 沙箱无法创建符号链接/联接的环境限制。
 - 真实宿主 UI：把本地发布包装入隔离 DSH Web profile，在 Edge/Playwright 中检查 1280 × 720 与 760 × 900 两种视口；论文驾驶舱、关系图、团队执行、DAG 横向滚动和 Result 筛选均正常，浏览器控制台 0 error / 0 warning。窄屏成员卡最小宽度增至 132 px。
 - 发布包：`npm pack --dry-run --json` 为 78 files，约 0.49 MB 压缩、1.97 MB 解包；包含 `lib/paperspine.js` 与重建后的客户端，不包含本地 `HANDOFF.md`。
+
+## 十二、2026-11-13 科研工作台复审修正
+
+- DSH 0.2.2 官方客户端服务已在本机 `test-env` 类型与导出中核对。`client-src/index.jsx` 改用 `slots`、`sessions`、`layout`、`sidebarRightTabs`、`uiWorkspace` 服务名，并以纯常量单测锁定注入名称。
+- readiness 映射统一为后端真实的 `scientific`、`manuscript`、`submission` 字段。测试由 `paperSpineViewOf()` 生成后端同形载荷，确认页面读取字段一致。
+- 论文主线将核心结论确认与目标 Result 确认设为任务细化和正式绘图的共同前置条件。四种组合矩阵均覆盖两个动作。
+- 团队成员状态分别显示已领取、工作中、正在运行、空闲和离线；打开成员会话失败后改为页面内错误提示与重试操作。
+- 图表卡片按图像真实加载结果切换预览或错误空态，并提供重试、打开文件；显式 `prevId` 用于版本对比，缺少关系时仅按同一 Result、同名文件和真实时间标注推测的上一记录。
+- 专家卡展示运行环境、来源仓库、许可证、`SKILL.md` 状态/路径、风险和安装位置。RDKit 已从模拟角色目录移到数据分析角色，精选条目数遵守每角色最多 3 项。
+- 技能菜单和 Git 进度诊断改写到 stderr，stdout 不再承载日志。
+- 阶段验证：`npm test` 为 268 项（266 通过、0 失败、2 跳过）；`npm run build:client` 成功，客户端 bundle 139.7 KB、source map 170.9 KB。两项跳过仍为 Windows 沙箱无法创建符号链接/联接的环境限制。
+- 真实 DSH Web 审图与 `npm pack --dry-run` 结果待本轮收尾后追加；完成前不报告发布包或浏览器验收通过。
